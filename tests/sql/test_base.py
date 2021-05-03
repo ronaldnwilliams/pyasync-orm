@@ -1,6 +1,6 @@
 import pytest
 
-from pyasync_orm.sql.base import Insert, pop_operator, LOOKUPS, create_where_clause, Select
+from pyasync_orm.sql.base import Insert, pop_operator, LOOKUPS, create_where_string, Select
 
 
 @pytest.mark.parametrize(
@@ -34,7 +34,7 @@ def test_pop_operator_none():
     )
 )
 def test_create_where_clause(where_dict, where_sql):
-    where_string = create_where_clause(where_dict)
+    where_string = create_where_string(where_dict)
 
     assert where_string == where_sql
 

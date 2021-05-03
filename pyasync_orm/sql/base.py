@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Union, Tuple
-
+from typing import List, Optional, Union, Tuple, Dict, Any
 
 LOOKUPS = {
     'gt': '>',
@@ -23,7 +22,7 @@ def pop_operator(key: str) -> Tuple[List[str], str]:
     return key_parts, operator or '='
 
 
-def create_where_clause(where: dict) -> str:
+def create_where_string(where: dict) -> str:
     where_string = []
     for key, value in where.items():
         key_parts, operator = pop_operator(key)
@@ -32,19 +31,13 @@ def create_where_clause(where: dict) -> str:
     return ' AND '.join(where_string)
 
 
-class BaseCRUDCommand(ABC):
+class BaseSQLCommand(ABC):
     def __init__(
         self,
         # TODO table_name might need to become Union[str, List[str]] to handle table relationships
         table_name: str,
-        columns: Union[str, List[str]],
     ):
         self.table_name = table_name
-
-        if isinstance(columns, list):
-            self.columns = ", ".join(column for column in columns)
-        else:
-            self.columns = columns
 
     @property
     @abstractmethod
@@ -52,7 +45,7 @@ class BaseCRUDCommand(ABC):
         ...
 
 
-class Select(BaseCRUDCommand):
+class Select(BaseSQLCommand):
     def __init__(
         self,
         table_name: str,
@@ -61,9 +54,13 @@ class Select(BaseCRUDCommand):
         order_by: Optional[List[str]] = None,
         limit: Optional[int] = None,
     ):
-        super().__init__(table_name, columns)
+        super().__init__(table_name)
+        if isinstance(columns, list):
+            self.columns = ", ".join(column for column in columns)
+        else:
+            self.columns = columns
         if where:
-            self.where = create_where_clause(where)
+            self.where = create_where_string(where)
         else:
             self.where = where
         if order_by:
@@ -88,14 +85,15 @@ class Select(BaseCRUDCommand):
         return _sql
 
 
-class Insert(BaseCRUDCommand):
+class Insert(BaseSQLCommand):
     def __init__(
         self,
         table_name: str,
         columns: List[str],
         returning: Optional[Union[str, List[str]]] = None,
     ):
-        super().__init__(table_name, columns)
+        super().__init__(table_name)
+        self.columns = ", ".join(column for column in columns)
         self.values = ", ".join(str(index) for index in range(1, len(columns) + 1))
         if isinstance(returning, list):
             returning = ", ".join(column for column in returning)
@@ -109,14 +107,45 @@ class Insert(BaseCRUDCommand):
             f'VALUES ({self.values})'
         )
         if self.returning:
-            _sql += f' RETURNING {self.returning};'
-        else:
-            _sql += ';'
+            _sql += f' RETURNING {self.returning}'
         return _sql
 
 
-class Update:
-    pass
+def create_set_columns_string(set_columns: dict) -> str:
+    set_columns_strings = []
+    for key, value in set_columns.items():
+        set_columns_strings.append(f'{key} = {value}')
+    return ', '.join(set_columns_strings)
+
+
+class Update(BaseSQLCommand):
+    def __init__(
+        self,
+        table_name: str,
+        set_columns: Dict[str, Any],
+        where: Optional[dict] = None,
+        returning: Optional[Union[str, List[str]]] = None,
+    ):
+        super().__init__(table_name)
+        self.set_columns = create_set_columns_string(set_columns)
+        if where:
+            self.where = create_where_string(where)
+        else:
+            self.where = where
+        if isinstance(returning, list):
+            returning = ", ".join(column for column in returning)
+        self.returning = returning
+
+    @property
+    def sql_string(self) -> str:
+        _sql = (
+            f'UPDATE {self.table_name} '
+            f'SET {self.set_columns} '
+        )
+        if self.where:
+            _sql += f'WHERE {self.where} '
+        if self.returning:
+            _sql += f' RETURNING {self.returning}'
 
 
 class Delete:
