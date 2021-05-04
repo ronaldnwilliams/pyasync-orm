@@ -1,6 +1,9 @@
 import pytest
 
-from pyasync_orm.sql.base import Insert, pop_operator, LOOKUPS, create_where_string, Select
+from pyasync_orm.sql.base import (
+    InsertSQL, pop_operator, LOOKUPS, create_where_string, SelectSQL,
+    BaseSQLCommand, create_set_columns_string, UpdateSQL,
+)
 
 
 @pytest.mark.parametrize(
@@ -39,9 +42,24 @@ def test_create_where_clause(where_dict, where_sql):
     assert where_string == where_sql
 
 
+def test_create_set_columns_string():
+    assert create_set_columns_string({'a': 1}) == 'a = 1'
+    assert create_set_columns_string({'a': 1, 'b': 2}) == 'a = 1, b = 2'
+
+
+class TestBaseSQLCommand:
+    def test_init(self):
+        class FooCommand(BaseSQLCommand):
+            @property
+            def sql_string(self) -> str:
+                return 'foo'
+
+        assert FooCommand('foo').table_name == 'foo'
+
+
 class TestSelect:
     def test_init(self):
-        select = Select(
+        select = SelectSQL(
             table_name='foo',
             columns='*',
         )
@@ -51,7 +69,7 @@ class TestSelect:
         assert select.limit is None
 
     def test_init_with_optionals(self):
-        select = Select(
+        select = SelectSQL(
             table_name='foo',
             columns=['a', 'b'],
             where={'a': 1},
@@ -64,7 +82,7 @@ class TestSelect:
         assert select.limit == 1
 
     def test_sql_string(self):
-        select = Select(
+        select = SelectSQL(
             table_name='foo',
             columns='*',
         )
@@ -72,7 +90,7 @@ class TestSelect:
         assert select.sql_string == 'SELECT * FROM foo '
 
     def test_sql_string_with_optionals(self):
-        select = Select(
+        select = SelectSQL(
             table_name='foo',
             columns=['a', 'b'],
             where={'a': 1},
@@ -90,109 +108,120 @@ class TestSelect:
 
 class TestInsert:
     def test_init(self):
-        table_name = 'foo'
-        columns = ['a', 'b', 'c']
-        expected_columns = 'a, b, c'
-
-        insert = Insert(
-            table_name=table_name,
-            columns=columns,
+        insert = InsertSQL(
+            table_name='foo',
+            columns=['a', 'b', 'c'],
         )
 
-        assert insert.table_name == table_name
-        assert insert.columns == expected_columns
+        assert insert.table_name == 'foo'
+        assert insert.columns == 'a, b, c'
         assert insert.returning is None
 
-    def test_init_returning_str(self):
-        table_name = 'foo'
-        columns = ['a', 'b', 'c']
-        expected_columns = 'a, b, c'
-        returning_string = '*'
-
-        insert = Insert(
-            table_name=table_name,
-            columns=columns,
-            returning=returning_string,
+    def test_init_with_optionals(self):
+        insert_returning_string = InsertSQL(
+            table_name='foo',
+            columns=['a', 'b', 'c'],
+            returning='*',
+        )
+        insert_returning_list = InsertSQL(
+            table_name='foo',
+            columns=['a', 'b', 'c'],
+            returning=['a', 'b'],
         )
 
-        assert insert.table_name == table_name
-        assert insert.columns == expected_columns
-        assert insert.returning == returning_string
-
-    def test_init_returning_list(self):
-        table_name = 'foo'
-        columns = ['a', 'b', 'c']
-        expected_columns = 'a, b, c'
-        returning_list = ['a', 'b']
-        expected_returning_list = 'a, b'
-
-        insert = Insert(
-            table_name=table_name,
-            columns=columns,
-            returning=returning_list,
-        )
-
-        assert insert.table_name == table_name
-        assert insert.columns == expected_columns
-        assert insert.returning == expected_returning_list
+        # insert_returning_string
+        assert insert_returning_string.table_name == 'foo'
+        assert insert_returning_string.columns == 'a, b, c'
+        assert insert_returning_string.returning == '*'
+        # insert_returning_list
+        assert insert_returning_list.table_name == 'foo'
+        assert insert_returning_list.columns == 'a, b, c'
+        assert insert_returning_list.returning == 'a, b'
 
     def test_sql_string(self):
-        table_name = 'foo'
         columns = ['a', 'b', 'c']
-        expected_columns = 'a, b, c'
         expected_values = ", ".join(str(index) for index in range(1, len(columns) + 1))
-        expected_sql_no_return = (
-            f'INSERT INTO {table_name} '
-            f'({expected_columns}) '
-            f'VALUES ({expected_values});'
-        )
 
-        insert = Insert(
-            table_name=table_name,
+        insert = InsertSQL(
+            table_name='foo',
             columns=columns,
         )
 
-        assert insert.sql_string == expected_sql_no_return
+        assert insert.sql_string == (
+            f'INSERT INTO foo (a, b, c) VALUES ({expected_values})'
+        )
 
-    def test_sql_string_returning_string(self):
-        table_name = 'foo'
+    def test_sql_string_with_optionals(self):
         columns = ['a', 'b', 'c']
-        expected_columns = 'a, b, c'
         expected_values = ", ".join(str(index) for index in range(1, len(columns) + 1))
-        returning_string = '*'
-        expected_sql_return_string = (
-            f'INSERT INTO {table_name} '
-            f'({expected_columns}) '
-            f'VALUES ({expected_values}) RETURNING {returning_string};'
-        )
 
-        insert = Insert(
-            table_name=table_name,
+        insert = InsertSQL(
+            table_name='foo',
             columns=columns,
-            returning=returning_string,
+            returning='*',
         )
 
-        assert insert.sql_string == expected_sql_return_string
-
-    def test_sql_string_returning_list(self):
-        table_name = 'foo'
-        columns = ['a', 'b', 'c']
-        expected_columns = 'a, b, c'
-        expected_values = ", ".join(str(index) for index in range(1, len(columns) + 1))
-        returning_list = ['a', 'b']
-        expected_returning_list = 'a, b'
-        expected_sql_return_list = (
-            f'INSERT INTO {table_name} '
-            f'({expected_columns}) '
-            f'VALUES ({expected_values}) '
-            f'RETURNING {expected_returning_list};'
+        assert insert.sql_string == (
+            f'INSERT INTO foo (a, b, c) VALUES ({expected_values}) RETURNING *'
         )
 
-        insert = Insert(
-            table_name=table_name,
-            columns=columns,
-            returning=returning_list,
+
+class TestUpdate:
+    def test_init(self):
+        update = UpdateSQL(
+            table_name='foo',
+            set_columns={'a': 1},
         )
 
-        assert insert.sql_string == expected_sql_return_list
+        assert update.table_name == 'foo'
+        assert update.set_columns == 'a = 1'
+        assert update.where is None
+        assert update.returning is None
 
+    def test_init_with_options(self):
+        set_columns = {'a': 1}
+        where = {'a': 2}
+
+        update_returning_string = UpdateSQL(
+            table_name='foo',
+            set_columns=set_columns,
+            where=where,
+            returning='*'
+        )
+        update_returning_list = UpdateSQL(
+            table_name='foo',
+            set_columns=set_columns,
+            where=where,
+            returning=['a']
+        )
+
+        # update_returning_string
+        assert update_returning_string.table_name == 'foo'
+        assert update_returning_string.set_columns == 'a = 1'
+        assert update_returning_string.where == 'a = 2'
+        assert update_returning_string.returning == '*'
+        # update_returning_list
+        assert update_returning_list.table_name == 'foo'
+        assert update_returning_list.set_columns == 'a = 1'
+        assert update_returning_list.where == 'a = 2'
+        assert update_returning_list.returning == 'a'
+
+    def test_sql_string(self):
+        update_sql_string = UpdateSQL(
+            table_name='foo',
+            set_columns={'a': 1},
+        ).sql_string
+
+        assert update_sql_string == 'UPDATE foo SET a = 1 '
+
+    def test_sql_string_with_optionals(self):
+        update_sql_string = UpdateSQL(
+            table_name='foo',
+            set_columns={'a': 1},
+            where={'a': 2},
+            returning='*',
+        ).sql_string
+
+        assert update_sql_string == (
+            'UPDATE foo SET a = 1 WHERE a = 2 RETURNING *'
+        )

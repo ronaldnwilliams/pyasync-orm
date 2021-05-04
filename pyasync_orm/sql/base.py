@@ -45,7 +45,7 @@ class BaseSQLCommand(ABC):
         ...
 
 
-class Select(BaseSQLCommand):
+class SelectSQL(BaseSQLCommand):
     def __init__(
         self,
         table_name: str,
@@ -56,18 +56,15 @@ class Select(BaseSQLCommand):
     ):
         super().__init__(table_name)
         if isinstance(columns, list):
-            self.columns = ", ".join(column for column in columns)
-        else:
-            self.columns = columns
+            columns = ", ".join(column for column in columns)
+        self.columns = columns
         if where:
-            self.where = create_where_string(where)
-        else:
-            self.where = where
+            where = create_where_string(where)
+        self.where = where
         if order_by:
             # TODO handle DESC
-            self.order_by = ", ".join(order for order in order_by)
-        else:
-            self.order_by = order_by
+            order_by = ", ".join(order for order in order_by)
+        self.order_by = order_by
         self.limit = limit
 
     @property
@@ -85,7 +82,7 @@ class Select(BaseSQLCommand):
         return _sql
 
 
-class Insert(BaseSQLCommand):
+class InsertSQL(BaseSQLCommand):
     def __init__(
         self,
         table_name: str,
@@ -118,7 +115,7 @@ def create_set_columns_string(set_columns: dict) -> str:
     return ', '.join(set_columns_strings)
 
 
-class Update(BaseSQLCommand):
+class UpdateSQL(BaseSQLCommand):
     def __init__(
         self,
         table_name: str,
@@ -129,9 +126,8 @@ class Update(BaseSQLCommand):
         super().__init__(table_name)
         self.set_columns = create_set_columns_string(set_columns)
         if where:
-            self.where = create_where_string(where)
-        else:
-            self.where = where
+            where = create_where_string(where)
+        self.where = where
         if isinstance(returning, list):
             returning = ", ".join(column for column in returning)
         self.returning = returning
@@ -145,8 +141,9 @@ class Update(BaseSQLCommand):
         if self.where:
             _sql += f'WHERE {self.where} '
         if self.returning:
-            _sql += f' RETURNING {self.returning}'
+            _sql += f'RETURNING {self.returning}'
+        return _sql
 
 
-class Delete:
+class DeleteSQL:
     pass
