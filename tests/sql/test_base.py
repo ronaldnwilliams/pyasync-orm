@@ -2,7 +2,7 @@ import pytest
 
 from pyasync_orm.sql.base import (
     InsertSQL, pop_operator, LOOKUPS, create_where_string, SelectSQL,
-    BaseSQLCommand, create_set_columns_string, UpdateSQL,
+    BaseSQLCommand, create_set_columns_string, UpdateSQL, DeleteSQL,
 )
 
 
@@ -224,4 +224,52 @@ class TestUpdate:
 
         assert update_sql_string == (
             'UPDATE foo SET a = 1 WHERE a = 2 RETURNING *'
+        )
+
+
+class TestDeleteSQL:
+    def test_init(self):
+        delete = DeleteSQL(table_name='foo')
+
+        assert delete.table_name == 'foo'
+        assert delete.where is None
+        assert delete.returning is None
+
+    def test_init_with_options(self):
+        where = {'a': 2}
+
+        delete_returning_string = DeleteSQL(
+            table_name='foo',
+            where=where,
+            returning='*'
+        )
+        delete_returning_list = DeleteSQL(
+            table_name='foo',
+            where=where,
+            returning=['a']
+        )
+
+        # delete_returning_string
+        assert delete_returning_string.table_name == 'foo'
+        assert delete_returning_string.where == 'a = 2'
+        assert delete_returning_string.returning == '*'
+        # delete_returning_list
+        assert delete_returning_list.table_name == 'foo'
+        assert delete_returning_list.where == 'a = 2'
+        assert delete_returning_list.returning == 'a'
+
+    def test_sql_string(self):
+        delete_sql_string = DeleteSQL(table_name='foo').sql_string
+
+        assert delete_sql_string == 'DELETE FROM foo '
+
+    def test_sql_string_with_optionals(self):
+        delete_sql_string = DeleteSQL(
+            table_name='foo',
+            where={'a': 2},
+            returning='*',
+        ).sql_string
+
+        assert delete_sql_string == (
+            'DELETE FROM foo WHERE a = 2 RETURNING *'
         )

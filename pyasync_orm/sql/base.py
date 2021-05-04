@@ -50,7 +50,7 @@ class SelectSQL(BaseSQLCommand):
         self,
         table_name: str,
         columns: Union[str, List[str]],
-        where: Optional[dict] = None,
+        where: Optional[Dict[str, Any]] = None,
         order_by: Optional[List[str]] = None,
         limit: Optional[int] = None,
     ):
@@ -120,7 +120,7 @@ class UpdateSQL(BaseSQLCommand):
         self,
         table_name: str,
         set_columns: Dict[str, Any],
-        where: Optional[dict] = None,
+        where: Optional[Dict[str, Any]] = None,
         returning: Optional[Union[str, List[str]]] = None,
     ):
         super().__init__(table_name)
@@ -145,5 +145,28 @@ class UpdateSQL(BaseSQLCommand):
         return _sql
 
 
-class DeleteSQL:
-    pass
+class DeleteSQL(BaseSQLCommand):
+    def __init__(
+        self,
+        table_name: str,
+        where: Optional[Dict[str, Any]] = None,
+        returning: Optional[Union[str, List[str]]] = None,
+    ):
+        super().__init__(table_name)
+        if where:
+            where = create_where_string(where)
+        self.where = where
+        if isinstance(returning, list):
+            returning = ", ".join(column for column in returning)
+        self.returning = returning
+
+    @property
+    def sql_string(self) -> str:
+        _sql = (
+            f'DELETE FROM {self.table_name} '
+        )
+        if self.where:
+            _sql += f'WHERE {self.where} '
+        if self.returning:
+            _sql += f'RETURNING {self.returning}'
+        return _sql
