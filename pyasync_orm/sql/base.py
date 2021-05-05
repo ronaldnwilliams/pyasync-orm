@@ -22,13 +22,44 @@ def pop_operator(key: str) -> Tuple[List[str], str]:
     return key_parts, operator or '='
 
 
-def create_where_string(where: dict) -> str:
+def create_where_string(where: dict, exclude: bool = False) -> str:
     where_string = []
     for key, value in where.items():
         key_parts, operator = pop_operator(key)
         # TODO handle table relationships here
         where_string.append(f'{key_parts[0]} {operator} {value}')
-    return ' AND '.join(where_string)
+    joined_wheres = ' AND '.join(where_string)
+    return f'{"NOT (" if exclude else ""}{joined_wheres}{")" if exclude else ""}'
+
+
+class SQL:
+    def __init__(self, table_name):
+        self.table_name = table_name
+        self.where = []
+        self.order_by = []
+        self.limit = None
+
+    def add_where(self, where: dict, exclude: bool = False):
+        where = create_where_string(where, exclude=exclude)
+        self.where.append(where)
+
+    def add_order_by(self, order_by_args: Tuple[str]):
+        self.order_by += list(order_by_args)
+
+    def set_limit(self, number: int):
+        self.limit = number
+
+    def insert(self):
+        return InsertSQL(table_name=self.table_name)
+
+    def select(self):
+        return SelectSQL(table_name=self.table_name)
+
+    def update(self):
+        return UpdateSQL(table_name=self.table_name)
+
+    def delete(self):
+        return DeleteSQL(table_name=self.table_name)
 
 
 class BaseSQLCommand(ABC):
@@ -44,13 +75,31 @@ class BaseSQLCommand(ABC):
     def sql_string(self) -> str:
         ...
 
+    @classmethod
+    def format_wheres_string(
+            cls,
+            wheres: Union[List[str], None],
+    ) -> Union[str, None]:
+        if wheres:
+            wheres = ' AND '.join(wheres)
+        return wheres
+
+    @classmethod
+    def format_returning_string(
+            cls,
+            returning: Union[str, List[str], None],
+    ) -> Union[str, None]:
+        if isinstance(returning, list):
+            returning = ", ".join(column for column in returning)
+        return returning
+
 
 class SelectSQL(BaseSQLCommand):
     def __init__(
         self,
         table_name: str,
         columns: Union[str, List[str]],
-        where: Optional[Dict[str, Any]] = None,
+        where: Optional[List[str]] = None,
         order_by: Optional[List[str]] = None,
         limit: Optional[int] = None,
     ):
@@ -58,9 +107,7 @@ class SelectSQL(BaseSQLCommand):
         if isinstance(columns, list):
             columns = ", ".join(column for column in columns)
         self.columns = columns
-        if where:
-            where = create_where_string(where)
-        self.where = where
+        self.where = self.format_wheres_string(where)
         if order_by:
             # TODO handle DESC
             order_by = ", ".join(order for order in order_by)
@@ -92,9 +139,7 @@ class InsertSQL(BaseSQLCommand):
         super().__init__(table_name)
         self.columns = ", ".join(column for column in columns)
         self.values = ", ".join(str(index) for index in range(1, len(columns) + 1))
-        if isinstance(returning, list):
-            returning = ", ".join(column for column in returning)
-        self.returning = returning
+        self.returning = self.format_returning_string(returning)
 
     @property
     def sql_string(self) -> str:
@@ -120,17 +165,13 @@ class UpdateSQL(BaseSQLCommand):
         self,
         table_name: str,
         set_columns: Dict[str, Any],
-        where: Optional[Dict[str, Any]] = None,
+        where: Optional[List[str]] = None,
         returning: Optional[Union[str, List[str]]] = None,
     ):
         super().__init__(table_name)
         self.set_columns = create_set_columns_string(set_columns)
-        if where:
-            where = create_where_string(where)
-        self.where = where
-        if isinstance(returning, list):
-            returning = ", ".join(column for column in returning)
-        self.returning = returning
+        self.where = self.format_wheres_string(where)
+        self.returning = self.format_returning_string(returning)
 
     @property
     def sql_string(self) -> str:
@@ -153,12 +194,8 @@ class DeleteSQL(BaseSQLCommand):
         returning: Optional[Union[str, List[str]]] = None,
     ):
         super().__init__(table_name)
-        if where:
-            where = create_where_string(where)
-        self.where = where
-        if isinstance(returning, list):
-            returning = ", ".join(column for column in returning)
-        self.returning = returning
+        self.where = self.format_wheres_string(where)
+        self.returning = self.format_returning_string(returning)
 
     @property
     def sql_string(self) -> str:
