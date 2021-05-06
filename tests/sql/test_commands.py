@@ -1,45 +1,7 @@
-import pytest
-
-from pyasync_orm.sql.base import (
-    InsertSQL, pop_operator, LOOKUPS, create_where_string, SelectSQL,
-    BaseSQLCommand, create_set_columns_string, UpdateSQL, DeleteSQL,
+from pyasync_orm.sql.commands import (
+    InsertSQL, SelectSQL, BaseSQLCommand, create_set_columns_string, UpdateSQL,
+    DeleteSQL,
 )
-
-
-@pytest.mark.parametrize(
-    'lookup_key,lookup_value',
-    tuple((key, value) for key, value in LOOKUPS.items()),
-)
-def test_pop_operator(lookup_key, lookup_value):
-    key_part = 'foo'
-
-    key_parts, operator = pop_operator(f'{key_part}__{lookup_key}')
-
-    assert key_parts[0] == key_part
-    assert operator == lookup_value
-
-
-def test_pop_operator_none():
-    key_part = 'foo'
-
-    key_parts, operator = pop_operator(key_part)
-
-    assert key_parts[0] == key_part
-    assert operator == '='
-
-
-@pytest.mark.parametrize(
-    'where_dict,where_sql',
-    (
-        ({'foo': 1}, 'foo = 1'),
-        ({'foo__gt': 2}, 'foo > 2'),
-        ({'foo': 1, 'foo__gt': 2}, 'foo = 1 AND foo > 2'),
-    )
-)
-def test_create_where_clause(where_dict, where_sql):
-    where_string = create_where_string(where_dict)
-
-    assert where_string == where_sql
 
 
 def test_create_set_columns_string():
@@ -55,6 +17,15 @@ class TestBaseSQLCommand:
                 return 'foo'
 
         assert FooCommand('foo').table_name == 'foo'
+
+    def test_format_wheres_string(self):
+        assert BaseSQLCommand.format_wheres_string(None) is None
+        assert BaseSQLCommand.format_wheres_string(['a', 'b']) == 'a AND b'
+
+    def test_format_returning_string(self):
+        assert BaseSQLCommand.format_returning_string('*') == '*'
+        assert BaseSQLCommand.format_returning_string(['a', 'b']) == 'a, b'
+        assert BaseSQLCommand.format_returning_string(None) is None
 
 
 class TestSelect:
@@ -72,7 +43,7 @@ class TestSelect:
         select = SelectSQL(
             table_name='foo',
             columns=['a', 'b'],
-            where={'a': 1},
+            where=['a = 1'],
             order_by=['b', 'a'],
             limit=1,
         )
@@ -93,7 +64,7 @@ class TestSelect:
         select = SelectSQL(
             table_name='foo',
             columns=['a', 'b'],
-            where={'a': 1},
+            where=['a = 1'],
             order_by=['b', 'a'],
             limit=1,
         )
@@ -180,7 +151,7 @@ class TestUpdate:
 
     def test_init_with_options(self):
         set_columns = {'a': 1}
-        where = {'a': 2}
+        where = ['a = 2']
 
         update_returning_string = UpdateSQL(
             table_name='foo',
@@ -218,7 +189,7 @@ class TestUpdate:
         update_sql_string = UpdateSQL(
             table_name='foo',
             set_columns={'a': 1},
-            where={'a': 2},
+            where=['a = 2'],
             returning='*',
         ).sql_string
 
@@ -236,7 +207,7 @@ class TestDeleteSQL:
         assert delete.returning is None
 
     def test_init_with_options(self):
-        where = {'a': 2}
+        where = ['a = 2']
 
         delete_returning_string = DeleteSQL(
             table_name='foo',
@@ -266,7 +237,7 @@ class TestDeleteSQL:
     def test_sql_string_with_optionals(self):
         delete_sql_string = DeleteSQL(
             table_name='foo',
-            where={'a': 2},
+            where=['a = 2'],
             returning='*',
         ).sql_string
 

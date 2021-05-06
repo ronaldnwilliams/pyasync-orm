@@ -1,6 +1,6 @@
 from typing import Optional, Tuple
 
-from pyasync_orm.sql.base import SQL
+from pyasync_orm.sql.sql import SQL
 
 
 class ORM:
@@ -8,29 +8,29 @@ class ORM:
         self.model_class = model_class
         self._sql = _sql
 
-    def _get_orm(self):
+    def _get_orm(self) -> 'ORM':
         if self._sql is None:
             orm = ORM(self.model_class, SQL(self.model_class.__table_name))
         else:
             orm = self
         return orm
 
-    async def filter(self, __sql: Optional[SQL] = None, **kwargs) -> 'ORM':
+    async def filter(self, **kwargs) -> 'ORM':
         orm = self._get_orm()
         orm._sql.add_where(kwargs)
         return orm
 
-    async def exclude(self, **kwargs):
+    async def exclude(self, **kwargs) -> 'ORM':
         orm = self._get_orm()
         orm._sql.add_where(kwargs, exclude=True)
         return orm
 
-    async def oder_by(self, *args: Tuple[str]):
+    async def oder_by(self, *args: str) -> 'ORM':
         orm = self._get_orm()
         orm._sql.add_order_by(args)
         return orm
 
-    async def limit(self, number: int):
+    async def limit(self, number: int) -> 'ORM':
         orm = self._get_orm()
         orm._sql.set_limit(number)
         return orm
