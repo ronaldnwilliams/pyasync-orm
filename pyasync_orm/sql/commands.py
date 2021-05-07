@@ -1,12 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Union, Dict, Any
-
-
-def create_set_columns_string(set_columns: dict) -> str:
-    set_columns_strings = []
-    for key, value in set_columns.items():
-        set_columns_strings.append(f'{key} = {value}')
-    return ', '.join(set_columns_strings)
+from typing import List, Optional, Union
 
 
 class BaseSQLCommand(ABC):
@@ -104,12 +97,12 @@ class UpdateSQL(BaseSQLCommand):
     def __init__(
         self,
         table_name: str,
-        set_columns: Dict[str, Any],
+        set_columns_string: str,
         where: Optional[List[str]] = None,
         returning: Optional[Union[str, List[str]]] = None,
     ):
         super().__init__(table_name)
-        self.set_columns = create_set_columns_string(set_columns)
+        self.set_columns = set_columns_string
         self.where = self.format_wheres_string(where)
         self.returning = self.format_returning_string(returning)
 

@@ -1,4 +1,4 @@
-from typing import Tuple, List
+from typing import Tuple, List, Union
 
 from pyasync_orm.sql.commands import InsertSQL, SelectSQL, UpdateSQL, DeleteSQL
 
@@ -24,41 +24,111 @@ def pop_operator(key: str) -> Tuple[List[str], str]:
     return key_parts, operator or '='
 
 
-def create_where_string(where: dict, exclude: bool = False) -> str:
+def create_where_string(
+        where: List[str],
+        starting_value: int,
+        exclude: bool = False,
+) -> str:
     where_string = []
-    for key, value in where.items():
+    value = starting_value
+    for key in where:
         key_parts, operator = pop_operator(key)
-        # TODO handle table relationships here
-        where_string.append(f'{key_parts[0]} {operator} {value}')
+        # TODO maybe handle table relationships here
+        where_string.append(f'{key_parts[0]} {operator} ${value}')
+        value += 1
     joined_wheres = ' AND '.join(where_string)
-    return f'{"NOT (" if exclude else ""}{joined_wheres}{")" if exclude else ""}'
+    return f'{"NOT " if exclude else ""}({joined_wheres})'
+
+
+def create_set_columns_string(
+        set_columns: List[str],
+        starting_value: int,
+) -> str:
+    set_columns_strings = []
+    value = starting_value
+    for key in set_columns:
+        set_columns_strings.append(f'{key} = ${value}')
+        value += 1
+    return ', '.join(set_columns_strings)
 
 
 class SQL:
     def __init__(self, table_name):
         self.table_name = table_name
+        self.value_count = 0
         self.where = []
         self.order_by = []
         self.limit = None
+        self.set_columns_string = ''
 
-    def add_where(self, where: dict, exclude: bool = False):
-        where = create_where_string(where, exclude=exclude)
+    def add_where(
+            self,
+            where: List[str],
+            exclude: bool = False,
+    ):
+        where = create_where_string(
+            where=where,
+            starting_value=self.value_count + 1,
+            exclude=exclude,
+        )
+        self.value_count += len(self.where)
         self.where.append(where)
 
-    def add_order_by(self, order_by_args: Tuple[str]):
-        self.order_by += list(order_by_args)
+    def set_set_columns(
+            self,
+            set_columns: List[str],
+    ):
+        set_columns_string = create_set_columns_string(
+            set_columns=set_columns,
+            starting_value=self.value_count + 1,
+        )
+        self.value_count += len(set_columns)
+        self.set_columns_string = set_columns_string
 
-    def set_limit(self, number: int):
-        self.limit = number
+    def add_order_by(self, order_by_args_length: int):
+        start = self.value_count + 1
+        stop = self.value_count + order_by_args_length + 1
+        self.order_by += [f'${number}' for number in list(range(start, stop))]
+        self.value_count += order_by_args_length
 
-    def insert(self):
-        return InsertSQL(table_name=self.table_name)
+    def set_limit(self):
+        self.value_count += 1
+        self.limit = f'${self.value_count}'
 
-    def select(self):
-        return SelectSQL(table_name=self.table_name)
+    def insert(self, columns: List[str]):
+        return InsertSQL(
+            table_name=self.table_name,
+            columns=columns,
+            # TODO dynamic returning
+            returning='*',
+        )
 
-    def update(self):
-        return UpdateSQL(table_name=self.table_name)
+    def select(
+            self,
+            columns: Union[str, List[str]],
+    ):
+        return SelectSQL(
+            table_name=self.table_name,
+            columns=columns,
+            where=self.where,
+            order_by=self.order_by,
+            limit=self.limit,
+        )
+
+    def update(self, set_columns: List[str]):
+        self.set_set_columns(set_columns)
+        return UpdateSQL(
+            table_name=self.table_name,
+            set_columns_string=self.set_columns_string,
+            where=self.where,
+            # TODO dynamic returning
+            returning='*',
+        )
 
     def delete(self):
-        return DeleteSQL(table_name=self.table_name)
+        return DeleteSQL(
+            table_name=self.table_name,
+            where=self.where,
+            # TODO dynamic returning
+            returning='*'
+        )
