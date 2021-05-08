@@ -22,13 +22,13 @@ class ORM:
 
     async def filter(self, **kwargs) -> 'ORM':
         orm = self._get_orm()
-        orm._sql.add_where(where=list(kwargs.keys()))
+        orm._sql.add_where(where_list=list(kwargs.keys()))
         orm._values += tuple(kwargs.values())
         return orm
 
     async def exclude(self, **kwargs) -> 'ORM':
         orm = self._get_orm()
-        orm._sql.add_where(where=list(kwargs.keys()), exclude=True)
+        orm._sql.add_where(where_list=list(kwargs.keys()), exclude=True)
         orm._values += tuple(kwargs.values())
         return orm
 

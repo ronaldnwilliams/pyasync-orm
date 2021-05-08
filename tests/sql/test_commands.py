@@ -1,12 +1,7 @@
 from pyasync_orm.sql.commands import (
-    InsertSQL, SelectSQL, BaseSQLCommand, create_set_columns_string, UpdateSQL,
+    InsertSQL, SelectSQL, BaseSQLCommand, UpdateSQL,
     DeleteSQL,
 )
-
-
-def test_create_set_columns_string():
-    assert create_set_columns_string({'a': 1}) == 'a = 1'
-    assert create_set_columns_string({'a': 1, 'b': 2}) == 'a = 1, b = 2'
 
 
 class TestBaseSQLCommand:
@@ -141,46 +136,46 @@ class TestUpdate:
     def test_init(self):
         update = UpdateSQL(
             table_name='foo',
-            set_columns={'a': 1},
+            set_columns_string='a = 1',
         )
 
         assert update.table_name == 'foo'
-        assert update.set_columns == 'a = 1'
+        assert update.set_columns_string == 'a = 1'
         assert update.where is None
         assert update.returning is None
 
     def test_init_with_options(self):
-        set_columns = {'a': 1}
+        set_columns = 'a = 1'
         where = ['a = 2']
 
         update_returning_string = UpdateSQL(
             table_name='foo',
-            set_columns=set_columns,
+            set_columns_string=set_columns,
             where=where,
             returning='*'
         )
         update_returning_list = UpdateSQL(
             table_name='foo',
-            set_columns=set_columns,
+            set_columns_string=set_columns,
             where=where,
             returning=['a']
         )
 
         # update_returning_string
         assert update_returning_string.table_name == 'foo'
-        assert update_returning_string.set_columns == 'a = 1'
+        assert update_returning_string.set_columns_string == 'a = 1'
         assert update_returning_string.where == 'a = 2'
         assert update_returning_string.returning == '*'
         # update_returning_list
         assert update_returning_list.table_name == 'foo'
-        assert update_returning_list.set_columns == 'a = 1'
+        assert update_returning_list.set_columns_string == 'a = 1'
         assert update_returning_list.where == 'a = 2'
         assert update_returning_list.returning == 'a'
 
     def test_sql_string(self):
         update_sql_string = UpdateSQL(
             table_name='foo',
-            set_columns={'a': 1},
+            set_columns_string='a = 1',
         ).sql_string
 
         assert update_sql_string == 'UPDATE foo SET a = 1 '
@@ -188,7 +183,7 @@ class TestUpdate:
     def test_sql_string_with_optionals(self):
         update_sql_string = UpdateSQL(
             table_name='foo',
-            set_columns={'a': 1},
+            set_columns_string='a = 1',
             where=['a = 2'],
             returning='*',
         ).sql_string

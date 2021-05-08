@@ -25,13 +25,13 @@ def pop_operator(key: str) -> Tuple[List[str], str]:
 
 
 def create_where_string(
-        where: List[str],
+        where_list: List[str],
         starting_value: int,
         exclude: bool = False,
 ) -> str:
     where_string = []
     value = starting_value
-    for key in where:
+    for key in where_list:
         key_parts, operator = pop_operator(key)
         # TODO maybe handle table relationships here
         where_string.append(f'{key_parts[0]} {operator} ${value}')
@@ -41,12 +41,12 @@ def create_where_string(
 
 
 def create_set_columns_string(
-        set_columns: List[str],
+        set_columns_list: List[str],
         starting_value: int,
 ) -> str:
     set_columns_strings = []
     value = starting_value
-    for key in set_columns:
+    for key in set_columns_list:
         set_columns_strings.append(f'{key} = ${value}')
         value += 1
     return ', '.join(set_columns_strings)
@@ -63,23 +63,23 @@ class SQL:
 
     def add_where(
             self,
-            where: List[str],
+            where_list: List[str],
             exclude: bool = False,
     ):
-        where = create_where_string(
-            where=where,
+        where_string = create_where_string(
+            where_list=where_list,
             starting_value=self.value_count + 1,
             exclude=exclude,
         )
-        self.value_count += len(self.where)
-        self.where.append(where)
+        self.value_count += len(where_list)
+        self.where.append(where_string)
 
     def set_set_columns(
             self,
             set_columns: List[str],
     ):
         set_columns_string = create_set_columns_string(
-            set_columns=set_columns,
+            set_columns_list=set_columns,
             starting_value=self.value_count + 1,
         )
         self.value_count += len(set_columns)

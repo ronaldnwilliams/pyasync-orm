@@ -1,6 +1,6 @@
 import pytest
 
-from pyasync_orm.sql.sql import create_where_string, pop_operator, LOOKUPS, SQL
+from pyasync_orm.sql.sql import create_where_string, pop_operator, LOOKUPS, SQL, create_set_columns_string
 
 
 @pytest.mark.parametrize(
@@ -26,17 +26,31 @@ def test_pop_operator_none():
 
 
 @pytest.mark.parametrize(
-    'where_dict,where_sql',
+    'where_list,where_sql',
     (
-        ({'foo': 1}, 'foo = 1'),
-        ({'foo__gt': 2}, 'foo > 2'),
-        ({'foo': 1, 'foo__gt': 2}, 'foo = 1 AND foo > 2'),
+        (['foo'], '(foo = $1)'),
+        (['foo__gt'], '(foo > $1)'),
+        (['foo', 'foo__gt'], '(foo = $1 AND foo > $2)'),
     )
 )
-def test_create_where_clause(where_dict, where_sql):
-    where_string = create_where_string(where_dict)
+def test_create_where_string(where_list, where_sql):
+    where_string = create_where_string(
+        where_list=where_list,
+        starting_value=1,
+    )
 
     assert where_string == where_sql
+
+
+def test_create_set_columns_string():
+    assert create_set_columns_string(
+        set_columns_list=['a'],
+        starting_value=1,
+    ) == 'a = $1'
+    assert create_set_columns_string(
+        set_columns_list=['a', 'b'],
+        starting_value=1,
+    ) == 'a = $1, b = $2'
 
 
 class TestSQL:
@@ -49,29 +63,45 @@ class TestSQL:
         assert sql.limit is None
 
     def test_add_where(self):
-        sql = SQL('foo')
+        sql = SQL(table_name='foo')
 
-        sql.add_where({'a': 1})
+        sql.add_where(where_list=['a'])
 
-        assert 'a = 1' in sql.where
+        assert sql.value_count == 1
+        assert '(a = $1)' in sql.where
 
     def test_add_where_exclude(self):
-        sql = SQL('foo')
+        sql = SQL(table_name='foo')
 
-        sql.add_where({'a': 1}, exclude=True)
+        sql.add_where(
+            where_list=['a', 'b'],
+            exclude=True,
+        )
 
-        assert 'NOT (a = 1)' in sql.where
+        assert sql.value_count == 2
+        assert 'NOT (a = $1 AND b = $2)' in sql.where
 
     def test_add_order_by(self):
         sql = SQL('foo')
 
-        sql.add_order_by(('a', 'b'))
+        sql.add_order_by(order_by_args_length=2)
 
-        assert ['a', 'b'] == sql.order_by
+        assert sql.value_count == 2
+        assert ['$1', '$2'] == sql.order_by
+
+    def test_add_order_by_has_value_count(self):
+        sql = SQL('foo')
+        sql.value_count = 1
+
+        sql.add_order_by(order_by_args_length=2)
+
+        assert sql.value_count == 3
+        assert ['$2', '$3'] == sql.order_by
 
     def test_set_limit(self):
         sql = SQL('foo')
 
-        sql.set_limit(1)
+        sql.set_limit()
 
-        assert sql.limit == 1
+        assert sql.value_count == 1
+        assert sql.limit == '$1'

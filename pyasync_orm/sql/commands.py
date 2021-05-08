@@ -102,7 +102,7 @@ class UpdateSQL(BaseSQLCommand):
         returning: Optional[Union[str, List[str]]] = None,
     ):
         super().__init__(table_name)
-        self.set_columns = set_columns_string
+        self.set_columns_string = set_columns_string
         self.where = self.format_wheres_string(where)
         self.returning = self.format_returning_string(returning)
 
@@ -110,7 +110,7 @@ class UpdateSQL(BaseSQLCommand):
     def sql_string(self) -> str:
         _sql = (
             f'UPDATE {self.table_name} '
-            f'SET {self.set_columns} '
+            f'SET {self.set_columns_string} '
         )
         if self.where:
             _sql += f'WHERE {self.where} '
