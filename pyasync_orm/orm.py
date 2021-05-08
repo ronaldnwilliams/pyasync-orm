@@ -20,25 +20,25 @@ class ORM:
     def sql(self) -> SQL:
         return self._sql or SQL(self.model_class.meta.table_name)
 
-    async def filter(self, **kwargs) -> 'ORM':
+    def filter(self, **kwargs) -> 'ORM':
         orm = self._get_orm()
         orm._sql.add_where(where_list=list(kwargs.keys()))
         orm._values += tuple(kwargs.values())
         return orm
 
-    async def exclude(self, **kwargs) -> 'ORM':
+    def exclude(self, **kwargs) -> 'ORM':
         orm = self._get_orm()
         orm._sql.add_where(where_list=list(kwargs.keys()), exclude=True)
         orm._values += tuple(kwargs.values())
         return orm
 
-    async def oder_by(self, *args: str) -> 'ORM':
+    def order_by(self, *args: str) -> 'ORM':
         orm = self._get_orm()
         orm._sql.add_order_by(order_by_args_length=len(args))
         orm._values += args
         return orm
 
-    async def limit(self, number: int) -> 'ORM':
+    def limit(self, number: int) -> 'ORM':
         orm = self._get_orm()
         orm._sql.set_limit()
         orm._values += (number, )
