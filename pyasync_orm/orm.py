@@ -1,9 +1,12 @@
 from typing import Optional
 
+from pyasync_orm.database import Database
 from pyasync_orm.sql.sql import SQL
 
 
 class ORM:
+    database = Database()
+
     def __init__(self, model_class, _sql: Optional[SQL] = None):
         self.model_class = model_class
         self._sql = _sql
@@ -16,8 +19,7 @@ class ORM:
             orm = self
         return orm
 
-    @property
-    def sql(self) -> SQL:
+    def get_sql(self) -> SQL:
         return self._sql or SQL(self.model_class.meta.table_name)
 
     def filter(self, **kwargs) -> 'ORM':
@@ -46,45 +48,54 @@ class ORM:
 
     async def count(self):
         """
-        Counting rows in big tables can be slow.
-        See ORM.estimate() for bigger tables (millions of rows).
+        Counting rows in big tables (millions of rows) can be slow.
+        Possibly add an estimate method but requires some tinkering with Analyze and Vacuum.
         """
-        sql_string = self.sql.select(columns='COUNT(*)')
-
-    async def estimate(self):
-        """
-        Typically, the estimate is very close. How close, depends on whether
-        ANALYZE or VACUUM are run enough - where "enough" is defined by the
-        level of write activity to your table.
-        https://stackoverflow.com/a/7945274
-        """
-        # TODO this is postgres specific
-        sql_string = (
-            'SELECT reltuples AS estimate FROM pg_class '
-            f'where relname = \'{self.model_class.meta.table_name}\';'
-        )
+        sql_string = self.get_sql().create_select_sql_string(columns='COUNT(*)')
+        async with self.database.pool.acquire() as connection:
+            results = await connection.fetch(sql_string, *self._values)
+        return results[0]['count']
 
     async def create(self, **kwargs):
-        self._values += tuple(kwargs.values())
-        sql_string = self.sql.insert(columns=list(kwargs.keys()))
+        values = self._values + tuple(kwargs.values())
+        sql_string = self.get_sql().create_insert_sql_string(columns=list(kwargs.keys()))
+        async with self.database.pool.acquire() as connection:
+            async with connection.transaction():
+                results = await connection.fetch(sql_string, *values)
+        return results[0]
 
     async def bulk_create(self, **kwargs):
         pass
 
     async def get(self, **kwargs):
-        self.sql.add_where(list(kwargs.keys()))
-        self._values = tuple(kwargs.values())
-        sql_string = self.sql.select(columns='*')
+        values = self._values + tuple(kwargs.values())
+        sql = self.get_sql()
+        sql.add_where(list(kwargs.keys()))
+        sql_string = sql.create_select_sql_string(columns='*')
+        async with self.database.pool.acquire() as connection:
+            results = await connection.fetch(sql_string, *values)
+        return results[0]
 
     async def all(self):
-        sql_string = self.sql.select(columns='*')
+        sql_string = self.get_sql().create_select_sql_string(columns='*')
+        async with self.database.pool.acquire() as connection:
+            results = await connection.fetch(sql_string, *self._values)
+        return results
 
     async def update(self, **kwargs):
-        self._values += tuple(kwargs.values())
-        sql_string = self.sql.update(set_columns=list(kwargs.keys()))
+        values = self._values + tuple(kwargs.values())
+        sql_string = self.get_sql().create_update_sql_string(set_columns=list(kwargs.keys()))
+        async with self.database.pool.acquire() as connection:
+            async with connection.transaction():
+                results = await connection.fetch(sql_string, *values)
+        return results
 
     async def bulk_update(self, **kwargs):
         pass
 
     async def delete(self):
-        self.sql.delete()
+        sql_string = self.get_sql().create_delete_sql_string()
+        async with self.database.pool.acquire() as connection:
+            async with connection.transaction():
+                results = await connection.fetch(sql_string, *self._values)
+        return results

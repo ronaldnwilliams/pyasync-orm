@@ -95,15 +95,15 @@ class SQL:
         self.value_count += 1
         self.limit = f'${self.value_count}'
 
-    def insert(self, columns: List[str]):
+    def create_insert_sql_string(self, columns: List[str]):
         return InsertSQL(
             table_name=self.table_name,
             columns=columns,
             # TODO dynamic returning
             returning='*',
-        )
+        ).sql_string
 
-    def select(
+    def create_select_sql_string(
             self,
             columns: Union[str, List[str]],
     ):
@@ -113,9 +113,9 @@ class SQL:
             where=self.where,
             order_by=self.order_by,
             limit=self.limit,
-        )
+        ).sql_string
 
-    def update(self, set_columns: List[str]):
+    def create_update_sql_string(self, set_columns: List[str]):
         self.set_set_columns(set_columns)
         return UpdateSQL(
             table_name=self.table_name,
@@ -123,12 +123,12 @@ class SQL:
             where=self.where,
             # TODO dynamic returning
             returning='*',
-        )
+        ).sql_string
 
-    def delete(self):
+    def create_delete_sql_string(self):
         return DeleteSQL(
             table_name=self.table_name,
             where=self.where,
             # TODO dynamic returning
             returning='*'
-        )
+        ).sql_string

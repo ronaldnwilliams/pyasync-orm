@@ -39,12 +39,12 @@ class TestORM:
 
     def test_sql(self):
         assert Foo.orm._sql is None
-        assert isinstance(Foo.orm.sql, SQL)
+        assert isinstance(Foo.orm.get_sql, SQL)
 
     def test_sql_already_set(self, get_foo_sql):
         sql = get_foo_sql
 
-        assert Foo.orm.sql == sql
+        assert Foo.orm.get_sql == sql
 
     def test_filter(self):
         orm = Foo.orm.filter(tacos=1)

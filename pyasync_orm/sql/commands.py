@@ -77,15 +77,19 @@ class InsertSQL(BaseSQLCommand):
         returning: Optional[Union[str, List[str]]] = None,
     ):
         super().__init__(table_name)
-        self.columns = ", ".join(column for column in columns)
-        self.values = ", ".join(str(index) for index in range(1, len(columns) + 1))
+        if columns:
+            self.columns = '(' + ', '.join(column for column in columns) + ')'
+            self.values = ', '.join(str(index) for index in range(1, len(columns) + 1))
+        else:
+            self.columns = ''
+            self.values = 'default'
         self.returning = self.format_returning_string(returning)
 
     @property
     def sql_string(self) -> str:
         _sql = (
             f'INSERT INTO {self.table_name} '
-            f'({self.columns}) '
+            f'{self.columns} '
             f'VALUES ({self.values})'
         )
         if self.returning:

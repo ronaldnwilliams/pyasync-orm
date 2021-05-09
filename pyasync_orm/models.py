@@ -14,6 +14,6 @@ class Model:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls.meta = Meta(f'{cls.__name__}s')
+        cls.meta = Meta(f'{cls.__name__.lower()}s')
         cls.orm = ORM(cls)
         cls.id = fields.BigInt(primary_key=True)
