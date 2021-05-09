@@ -23,3 +23,8 @@ class Model:
 
     def __repr__(self):
         return f'{self}'
+
+    async def refresh_from_db(self):
+        if isinstance(self.id, int):
+            refreshed = await self.orm.get(id=self.id)
+            self.__dict__.update(refreshed.__dict__)
