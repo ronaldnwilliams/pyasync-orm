@@ -1,5 +1,3 @@
-from typing import Type
-
 from pyasync_orm import fields
 from pyasync_orm.orm import ORM
 
