@@ -41,14 +41,12 @@ class ORM:
 
     def order_by(self, *args: str) -> 'ORM':
         orm = self._get_orm()
-        orm._sql.add_order_by(order_by_args_length=len(args))
-        orm._values += args
+        orm._sql.add_order_by(args)
         return orm
 
     def limit(self, number: int) -> 'ORM':
         orm = self._get_orm()
-        orm._sql.set_limit()
-        orm._values += (number, )
+        orm._sql.set_limit(number)
         return orm
 
     async def count(self):

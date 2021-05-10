@@ -1,4 +1,8 @@
-from typing import Optional, Any
+from collections import namedtuple
+from typing import Optional, Any, TYPE_CHECKING, Union
+
+if TYPE_CHECKING:
+    from pyasync_orm.models import Model
 
 
 class BaseField:
@@ -96,3 +100,27 @@ class DateTime(BaseField):
 class ByteArray(BaseField):
     def __str__(self):
         return f'bytea {super().__str__()}'.strip()
+
+
+_OnDelete = namedtuple(
+    '_OnDelete',
+    ['CASCADE', 'RESTRICT', 'NO_ACTION', 'SET_NULL', 'SET_DEFAULT'],
+    defaults=['CASCADE', 'RESTRICT', 'NO ACTION', 'SET NULL', 'SET DEFAULT'],
+)
+
+ON_DELETE = _OnDelete()
+
+
+class RelationshipField(BaseField):
+    def __init__(self, model: Union[str, 'Model'], on_delete: str, **kwargs):
+        super().__init__(**kwargs)
+        if on_delete not in set(ON_DELETE._field_defaults.values()):
+            raise ValueError(
+                f'{self.__class__.__name__} Relationship fields require a proper on delete param. '
+                f'Cannot set on delete to: {on_delete}'
+            )
+        self.on_delete = on_delete
+
+
+class ForeignKey(RelationshipField):
+    pass

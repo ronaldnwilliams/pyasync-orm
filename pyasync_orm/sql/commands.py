@@ -79,7 +79,7 @@ class InsertSQL(BaseSQLCommand):
         super().__init__(table_name)
         if columns:
             self.columns = '(' + ', '.join(column for column in columns) + ')'
-            self.values = ', '.join(str(index) for index in range(1, len(columns) + 1))
+            self.values = ', '.join(f'${index}' for index in range(1, len(columns) + 1))
         else:
             self.columns = ''
             self.values = 'default'

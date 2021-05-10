@@ -85,15 +85,11 @@ class SQL:
         self.value_count += len(set_columns)
         self.set_columns_string = set_columns_string
 
-    def add_order_by(self, order_by_args_length: int):
-        start = self.value_count + 1
-        stop = self.value_count + order_by_args_length + 1
-        self.order_by += [f'${number}' for number in list(range(start, stop))]
-        self.value_count += order_by_args_length
+    def add_order_by(self, order_by_args: Tuple[str]):
+        self.order_by += list(order_by_args)
 
-    def set_limit(self):
-        self.value_count += 1
-        self.limit = f'${self.value_count}'
+    def set_limit(self, number: int):
+        self.limit = number
 
     def create_insert_sql_string(self, columns: List[str]):
         return InsertSQL(
