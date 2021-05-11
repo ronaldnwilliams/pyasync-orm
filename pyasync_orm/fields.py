@@ -1,5 +1,5 @@
 from collections import namedtuple
-from typing import Optional, Any, TYPE_CHECKING, Union
+from typing import Optional, Any, TYPE_CHECKING, Union, Type
 
 if TYPE_CHECKING:
     from pyasync_orm.models import Model
@@ -16,13 +16,13 @@ class BaseField:
         self.unique = 'UNIQUE' if unique else ''
         self.allow_null = 'NOT NULL' if not allow_null else ''
 
-    def __str__(self):
+    def get_sql_string(self):
         return f'{self.default} {self.unique} {self.allow_null}'
 
 
 class Boolean(BaseField):
-    def __str__(self):
-        return f'bool {super().__str__()}'.strip()
+    def get_sql_string(self):
+        return f'bool {super().get_sql_string()}'.strip()
 
 
 class Serial(BaseField):
@@ -30,23 +30,23 @@ class Serial(BaseField):
         super().__init__(**kwargs)
         self.primary_key = 'PRIMARY KEY' if primary_key else ''
 
-    def __str__(self):
-        return f'{super().__str__()} {self.primary_key}'.strip()
+    def get_sql_string(self):
+        return f'{super().get_sql_string()} {self.primary_key}'.strip()
 
 
 class SmallInt(Serial):
-    def __str__(self):
-        return f'smallint {super().__str__()}'.strip()
+    def get_sql_string(self):
+        return f'smallint {super().get_sql_string()}'.strip()
 
 
 class Integer(Serial):
-    def __str__(self):
-        return f'integer {super().__str__()}'.strip()
+    def get_sql_string(self):
+        return f'integer {super().get_sql_string()}'.strip()
 
 
 class BigInt(Serial):
-    def __str__(self):
-        return f'bigint {super().__str__()}'.strip()
+    def get_sql_string(self):
+        return f'bigint {super().get_sql_string()}'.strip()
 
 
 class VarChar(BaseField):
@@ -54,13 +54,13 @@ class VarChar(BaseField):
         super().__init__(**kwargs)
         self.max_length = max_length
 
-    def __str__(self):
-        return f'varchar ({self.max_length}) {super().__str__()}'.strip()
+    def get_sql_string(self):
+        return f'varchar ({self.max_length}) {super().get_sql_string()}'.strip()
 
 
 class Text(BaseField):
-    def __str__(self):
-        return f'text {super().__str__()}'.strip()
+    def get_sql_string(self):
+        return f'text {super().get_sql_string()}'.strip()
 
 
 class FixedChar(BaseField):
@@ -68,18 +68,18 @@ class FixedChar(BaseField):
         super().__init__(**kwargs)
         self.fixed_length = fixed_length
 
-    def __str__(self):
-        return f'char ({self.fixed_length}) {super().__str__()}'.strip()
+    def get_sql_string(self):
+        return f'char ({self.fixed_length}) {super().get_sql_string()}'.strip()
 
 
 class JSON(BaseField):
-    def __str__(self):
-        return f'json {super().__str__()}'.strip()
+    def get_sql_string(self):
+        return f'json {super().get_sql_string()}'.strip()
 
 
 class Date(BaseField):
-    def __str__(self):
-        return f'date {super().__str__()}'.strip()
+    def get_sql_string(self):
+        return f'date {super().get_sql_string()}'.strip()
 
 
 class DateTime(BaseField):
@@ -93,27 +93,32 @@ class DateTime(BaseField):
         self.with_time_zone = 'with time zone' if with_time_zone else ''
         self.selected_timezone = selected_timezone if with_time_zone else None
 
-    def __str__(self):
-        return f'timestamp {self.with_time_zone} {super().__str__()}'.strip()
+    def get_sql_string(self):
+        return f'timestamp {self.with_time_zone} {super().get_sql_string()}'.strip()
 
 
 class ByteArray(BaseField):
-    def __str__(self):
-        return f'bytea {super().__str__()}'.strip()
+    def get_sql_string(self):
+        return f'bytea {super().get_sql_string()}'.strip()
 
 
-_OnDelete = namedtuple(
+# _OnDelete = namedtuple(
+#     '_OnDelete',
+#     ['CASCADE', 'RESTRICT', 'NO_ACTION', 'SET_NULL', 'SET_DEFAULT'],
+#     defaults=['CASCADE', 'RESTRICT', 'NO ACTION', 'SET NULL', 'SET DEFAULT'],
+# )
+
+ON_DELETE = namedtuple(
     '_OnDelete',
     ['CASCADE', 'RESTRICT', 'NO_ACTION', 'SET_NULL', 'SET_DEFAULT'],
     defaults=['CASCADE', 'RESTRICT', 'NO ACTION', 'SET NULL', 'SET DEFAULT'],
-)
-
-ON_DELETE = _OnDelete()
+)()
 
 
 class RelationshipField(BaseField):
-    def __init__(self, model: Union[str, 'Model'], on_delete: str, **kwargs):
+    def __init__(self, model: Union[str, Type['Model']], on_delete: str, **kwargs):
         super().__init__(**kwargs)
+        self.model = model
         if on_delete not in set(ON_DELETE._field_defaults.values()):
             raise ValueError(
                 f'{self.__class__.__name__} Relationship fields require a proper on delete param. '
@@ -124,3 +129,16 @@ class RelationshipField(BaseField):
 
 class ForeignKey(RelationshipField):
     pass
+
+
+class ReverseRelationship(RelationshipField):
+    def __init__(self, *args, **kwargs):
+        self.model_id = None
+        super().__init__(*args, **kwargs)
+
+    @property
+    def orm(self, **kwargs):
+        return self.model.orm
+
+    def all(self):
+        return self.model.orm.filter(id=self.model_id).all()

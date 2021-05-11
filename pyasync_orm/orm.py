@@ -59,9 +59,10 @@ class ORM:
             results = await connection.fetch(sql_string, *self._values)
         return results[0]['count']
 
-    def convert_to_model(self, record_dict: dict):
+    def convert_to_model(self, record: dict):
         model = self.model_class()
-        model.__dict__.update(record_dict)
+        model.__dict__.update(record)
+        model.update_relationships(record)
         return model
 
     async def create(self, **kwargs):
