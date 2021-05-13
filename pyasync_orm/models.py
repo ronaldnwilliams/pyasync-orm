@@ -37,6 +37,8 @@ class Model:
                     f'{cls.__name__.lower()}_set',
                     fields.ReverseRelationship(cls, on_delete=field_value.on_delete),
                 )
+                # TODO this does not handle multi word classes like FooBar
+                # should be foo_bar_id but would make it foobar_id
                 setattr(
                     cls,
                     f'{field_value.model.__name__.lower()}_id',
