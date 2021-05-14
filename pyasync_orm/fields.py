@@ -128,7 +128,8 @@ class RelationshipField(BaseField):
 
 
 class ForeignKey(RelationshipField):
-    pass
+    def get_sql_string(self):
+        return f'bigint REFERENCES {self.model.meta.table_name}'
 
 
 class ReverseRelationship(RelationshipField):

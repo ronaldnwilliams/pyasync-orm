@@ -1,12 +1,22 @@
-from typing import Optional, List
+from typing import Optional, List, Type
+
+import inflection
 
 from pyasync_orm import fields
 from pyasync_orm.orm import ORM
 
 
 class Meta:
-    def __init__(self, table_name: str):
+    def __init__(
+        self,
+        table_name: str,
+        foreign_key_name: str,
+        reverse_name: str,
+    ):
         self.table_name = table_name
+        self.foreign_key_name = foreign_key_name
+        self.reverse_name = reverse_name
+        self.table_fields: List[Type[fields.BaseField]] = []
 
 
 class Model:
@@ -16,10 +26,17 @@ class Model:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls.meta = Meta(f'{cls.__name__.lower()}s')
         cls.orm = ORM(cls)
         cls.id = fields.BigInt(primary_key=True)
+        underscore_name = inflection.underscore(cls.__name__)
+        cls.meta = Meta(
+            table_name=inflection.tableize(cls.__name__),
+            foreign_key_name=f'{underscore_name}_id',
+            reverse_name=f'{underscore_name}_set',
+        )
         cls._set_relationships()
+        # TODO determine the data type for these and add them
+        cls.meta.table_fields = []
 
     def __str__(self):
         return f'<{self.__class__.__name__}: {self.id}>'
@@ -34,15 +51,13 @@ class Model:
             if isinstance(field_value, fields.ForeignKey):
                 setattr(
                     field_value.model,
-                    f'{cls.__name__.lower()}_set',
+                    cls.meta.reverse_name,
                     fields.ReverseRelationship(cls, on_delete=field_value.on_delete),
                 )
-                # TODO this does not handle multi word classes like FooBar
-                # should be foo_bar_id but would make it foobar_id
                 setattr(
                     cls,
-                    f'{field_value.model.__name__.lower()}_id',
-                    fields.BigInt(),
+                    field_value.model.meta.foreign_key_name,
+                    fields.ForeignKey(field_value.model, on_delete=field_value.on_delete),
                 )
 
     def _update_reverse_relationships(self, record):
