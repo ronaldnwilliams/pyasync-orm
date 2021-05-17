@@ -56,11 +56,16 @@ class SQL:
     def __init__(self, table_name):
         self.table_name = table_name
         self.value_count = 0
+        self.select_columns = ''
         self.where = []
         self.order_by = []
         self.limit = None
         self.set_columns_string = ''
-        self.relations = []
+
+    def add_select_columns(self, columns: List[str]):
+        if self.select_columns:
+            self.select_columns += ', '
+        self.select_columns += ', '.join(columns)
 
     def add_where(
             self,
@@ -92,14 +97,10 @@ class SQL:
     def set_limit(self, number: int):
         self.limit = number
 
-    def add_select_related(self, relations: Tuple[str]):
-        for relation in relations:
-            self.relations += [f'{name.lower()}s' for name in relation.split('__')]
-
     def create_insert_sql_string(self, columns: List[str]):
         return InsertSQL(
             table_name=self.table_name,
-            columns=columns,
+            columns=self.select_columns,
             # TODO dynamic returning
             returning='*',
         ).sql_string
@@ -110,7 +111,6 @@ class SQL:
     ):
         return SelectSQL(
             table_name=self.table_name,
-            relations=self.relations,
             columns=columns,
             where=self.where,
             order_by=self.order_by,

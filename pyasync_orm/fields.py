@@ -19,6 +19,10 @@ class BaseField:
     def get_sql_string(self):
         return f'{self.default} {self.unique} {self.allow_null}'
 
+    @property
+    def field_name_extension(self) -> str:
+        return ''
+
 
 class Boolean(BaseField):
     def get_sql_string(self):

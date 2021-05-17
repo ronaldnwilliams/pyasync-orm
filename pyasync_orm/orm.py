@@ -1,4 +1,4 @@
-from typing import Optional, TYPE_CHECKING, Type, List
+from typing import Optional, TYPE_CHECKING, Type, List, Tuple
 
 from pyasync_orm.database import Database
 from pyasync_orm.sql.sql import SQL
@@ -29,25 +29,11 @@ class ORM:
 
     def _add_table_names(self, fields: List[str]) -> List[str]:
         field_list = []
+        table_fields = self.model_class.meta.table_fields
         for field in fields:
-            if '_' in field and not hasattr(self.model_class, field):
-                relations = field.split('__')
-                for relation in relations:
-                    if '_' in relation and not hasattr(self.model_class, field):
-                        # chop off last _ and check again
-                        relation_parts = relation.split('_')
-                        _field = None
-                        for number in range(1, len(relation) + 1):
-                            check_field = '_'.join(relation_parts[:-number])
-                            if hasattr(self.model_class, check_field):
-                                _field = check_field
-                        if _field:
-                            field_list.append(f'{self.model_class.meta.table_name}.{_field}')
-                        else:
-                            raise AttributeError(f'{self.model_class} does not have field {field}')
-                    else:
-                        field_list.append(f'{self.model_class.meta.table_name}.{relation}')
-            else:
+            if field in table_fields:
+                if 'REFERENCES' in table_fields[field].get_sql_string() and not field.endswith('_id'):
+                    field = f'{field}_id'
                 field_list.append(f'{self.model_class.meta.table_name}.{field}')
         return field_list
 
@@ -73,9 +59,27 @@ class ORM:
         orm._sql.set_limit(number)
         return orm
 
+    def _get_select_columns_from_related_tables(
+            self,
+            related_names: Tuple[str],
+    ) -> List[str]:
+        select_columns = []
+        for related_name in related_names:
+            if '__' not in related_name:
+                related_model_meta = self.model_class.meta.table_fields[related_name].model.meta
+                select_columns += [
+                    f'{related_model_meta.table_name}.{field_name}'
+                    for field_name in related_model_meta.table_fields.keys()
+                ]
+            else:
+                # TODO left off here recursion?
+                x = related_name.split('__')
+        return select_columns
+
     def select_related(self, *args: str):
         orm = self._get_orm()
-        orm._sql.add_select_related(args)
+        select_columns = self._get_select_columns_from_related_tables(args)
+        orm._sql.add_select_columns(select_columns)
         return orm
 
     def prefect_related(self, *args: str):
@@ -119,8 +123,7 @@ class ORM:
     async def get(self, **kwargs):
         values = self._values + tuple(kwargs.values())
         sql = self._get_sql()
-        fields_with_table_names = self._add_table_names(list(kwargs.keys()))
-        sql.add_where(fields_with_table_names)
+        sql.add_where(list(kwargs.keys()))
         sql_string = sql.create_select_sql_string(columns='*')
         async with self.database.pool.acquire() as connection:
             results = await connection.fetch(sql_string, *values)

@@ -38,18 +38,12 @@ class SelectSQL(BaseSQLCommand):
     def __init__(
         self,
         table_name: str,
-        relations: [List[str]],
-        columns: Union[str, List[str]],
+        columns: str,
         where: Optional[List[str]] = None,
         order_by: Optional[List[str]] = None,
         limit: Optional[int] = None,
     ):
         super().__init__(table_name)
-        relations = ', '.join(relations)
-        if relations:
-            self.table_name = f'{self.table_name}, {relations}'
-        if isinstance(columns, list):
-            columns = ", ".join(column for column in columns)
         self.columns = columns
         self.where = self.format_wheres_string(where)
         if order_by:

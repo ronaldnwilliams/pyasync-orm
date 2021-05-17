@@ -1,4 +1,4 @@
-from typing import Optional, List, Type
+from typing import Optional, List, Type, Dict
 
 import inflection
 
@@ -16,7 +16,7 @@ class Meta:
         self.table_name = table_name
         self.foreign_key_name = foreign_key_name
         self.reverse_name = reverse_name
-        self.table_fields: List[Type[fields.BaseField]] = []
+        self.table_fields: Dict[str, Type[fields.BaseField]] = {}
 
 
 class Model:
@@ -26,7 +26,6 @@ class Model:
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls.orm = ORM(cls)
         cls.id = fields.BigInt(primary_key=True)
         underscore_name = inflection.underscore(cls.__name__)
         cls.meta = Meta(
@@ -35,8 +34,12 @@ class Model:
             reverse_name=f'{underscore_name}_set',
         )
         cls._set_relationships()
-        # TODO determine the data type for these and add them
-        cls.meta.table_fields = []
+        cls.meta.table_fields = {
+            k: v
+            for k, v in cls.__dict__.items()
+            if isinstance(v, fields.BaseField)
+        }
+        cls.orm = ORM(cls)
 
     def __str__(self):
         return f'<{self.__class__.__name__}: {self.id}>'
