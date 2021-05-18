@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, Union
+from typing import List, Optional, Union, Tuple
 
 
 class BaseSQLCommand(ABC):
@@ -39,12 +39,14 @@ class SelectSQL(BaseSQLCommand):
         self,
         table_name: str,
         columns: str,
+        inner_joins: Optional[Tuple[Tuple[str, str]]] = None,
         where: Optional[List[str]] = None,
         order_by: Optional[List[str]] = None,
         limit: Optional[int] = None,
     ):
         super().__init__(table_name)
         self.columns = columns
+        self.inner_joins = inner_joins
         self.where = self.format_wheres_string(where)
         if order_by:
             # TODO handle DESC
@@ -58,6 +60,9 @@ class SelectSQL(BaseSQLCommand):
             f'SELECT {self.columns} '
             f'FROM {self.table_name} '
         )
+        if self.inner_joins:
+            for inner_join in self.inner_joins:
+                _sql += f'INNER JOIN {inner_join[0]} ON {inner_join[1]}'
         if self.where:
             _sql += f'WHERE {self.where} '
         if self.order_by:

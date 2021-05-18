@@ -16,6 +16,9 @@ class ORM:
         self._sql: Optional[SQL] = None
         self._values = ()
 
+    def _get_inner_joins(self, related_columns: Tuple[str]):
+        pass
+
     def _get_orm(self) -> 'ORM':
         if self._sql is None:
             orm = ORM(self.model_class)
@@ -27,15 +30,57 @@ class ORM:
     def _get_sql(self) -> SQL:
         return self._sql or SQL(self.model_class.meta.table_name)
 
-    def _add_table_names(self, fields: List[str]) -> List[str]:
-        field_list = []
+    def _add_inner_joins(self, field: str):
+        sql = self._get_sql()
+        # order__customer__name order__price order__customer__wallet__primary
+        split_fields = field.split('__')
+        current_model = self.model_class
+        for split_field in split_fields:
+            join_model_field = current_model.meta.table_fields[split_field]
+            if hasattr(join_model_field, 'model'):
+                join_model = join_model_field.model
+                sql.add_inner_join((
+                    join_model.meta.table_name,
+                    f'({current_model}.{split_field}_id = {join_model.meta.table_name}.id)',
+                ))
+                current_model = join_model.meta.table_fields
+
+    def _add_table_names(self, fields: List[str]) -> Tuple[List[str], List[str]]:
+        model_field_list = []
+        related_field_list = []
         table_fields = self.model_class.meta.table_fields
         for field in fields:
             if field in table_fields:
                 if 'REFERENCES' in table_fields[field].get_sql_string() and not field.endswith('_id'):
                     field = f'{field}_id'
-                field_list.append(f'{self.model_class.meta.table_name}.{field}')
-        return field_list
+                model_field_list.append(f'{self.model_class.meta.table_name}.{field}')
+            else:
+                self._add_inner_joins(field)
+                split_field = field.split('__')[-2:]
+                related_field_list.append(f'{split_field[0]}.{split_field[1]}')
+        return model_field_list, related_field_list
+
+    def _get_select_columns_from_related_tables(
+            self,
+            related_names: Tuple[str],
+    ) -> List[str]:
+        # TODO use _add_inner_joins here
+        select_columns = []
+        for related_name in related_names:
+            split_related_names = related_name.split('__')
+            related_model_meta = self.model_class.meta
+            select_columns += [
+                f'{related_model_meta.table_name}.{field_name}'
+                for field_name in related_model_meta.table_fields.keys()
+            ]
+            if len(split_related_names) > 1:
+                for split_related_name in split_related_names:
+                    related_model_meta = related_model_meta.table_fields[split_related_name].model.meta
+                    select_columns += [
+                        f'{related_model_meta.table_name}.{field_name}'
+                        for field_name in related_model_meta.table_fields.keys()
+                    ]
+        return select_columns
 
     def filter(self, **kwargs) -> 'ORM':
         orm = self._get_orm()
@@ -59,30 +104,13 @@ class ORM:
         orm._sql.set_limit(number)
         return orm
 
-    def _get_select_columns_from_related_tables(
-            self,
-            related_names: Tuple[str],
-    ) -> List[str]:
-        select_columns = []
-        for related_name in related_names:
-            if '__' not in related_name:
-                related_model_meta = self.model_class.meta.table_fields[related_name].model.meta
-                select_columns += [
-                    f'{related_model_meta.table_name}.{field_name}'
-                    for field_name in related_model_meta.table_fields.keys()
-                ]
-            else:
-                # TODO left off here recursion?
-                x = related_name.split('__')
-        return select_columns
-
     def select_related(self, *args: str):
         orm = self._get_orm()
         select_columns = self._get_select_columns_from_related_tables(args)
         orm._sql.add_select_columns(select_columns)
         return orm
 
-    def prefect_related(self, *args: str):
+    def prefetch_related(self, *args: str):
         pass
 
     async def count(self):
@@ -121,16 +149,21 @@ class ORM:
         pass
 
     async def get(self, **kwargs):
-        values = self._values + tuple(kwargs.values())
         sql = self._get_sql()
-        sql.add_where(list(kwargs.keys()))
-        sql_string = sql.create_select_sql_string(columns='*')
+        model_columns, related_columns = self._add_table_names(list(kwargs.keys()))
+        sql.add_select_columns(model_columns)
+        sql.add_where(model_columns + related_columns)
+        sql_string = sql.create_select_sql_string()
+        values = self._values + tuple(kwargs.values())
         async with self.database.pool.acquire() as connection:
             results = await connection.fetch(sql_string, *values)
         return self.convert_to_model(dict(results[0]))
 
     async def all(self):
-        sql_string = self._get_sql().create_select_sql_string(columns='*')
+        sql = self._get_sql()
+        if sql.select_columns == '':
+            sql.add_select_columns(['*'])
+        sql_string = sql.create_select_sql_string()
         async with self.database.pool.acquire() as connection:
             results = await connection.fetch(sql_string, *self._values)
         return [self.convert_to_model(dict(result)) for result in results]

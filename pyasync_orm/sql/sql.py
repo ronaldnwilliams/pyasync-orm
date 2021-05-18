@@ -55,6 +55,7 @@ def create_set_columns_string(
 class SQL:
     def __init__(self, table_name):
         self.table_name = table_name
+        self.inner_joins = None
         self.value_count = 0
         self.select_columns = ''
         self.where = []
@@ -63,9 +64,8 @@ class SQL:
         self.set_columns_string = ''
 
     def add_select_columns(self, columns: List[str]):
-        if self.select_columns:
-            self.select_columns += ', '
-        self.select_columns += ', '.join(columns)
+        if self.select_columns == '':
+            self.select_columns = ', '.join(columns)
 
     def add_where(
             self,
@@ -79,6 +79,11 @@ class SQL:
         )
         self.value_count += len(where_list)
         self.where.append(where_string)
+
+    def add_inner_joins(self, inner_joins: Tuple[str, str]):
+        if self.inner_joins is None:
+            self.inner_joins = ()
+        self.inner_joins += (inner_joins, )
 
     def set_set_columns(
             self,
@@ -100,18 +105,16 @@ class SQL:
     def create_insert_sql_string(self, columns: List[str]):
         return InsertSQL(
             table_name=self.table_name,
-            columns=self.select_columns,
+            columns=columns,
             # TODO dynamic returning
             returning='*',
         ).sql_string
 
-    def create_select_sql_string(
-            self,
-            columns: Union[str, List[str]],
-    ):
+    def create_select_sql_string(self):
         return SelectSQL(
             table_name=self.table_name,
-            columns=columns,
+            columns=self.select_columns,
+            inner_joins=self.inner_joins,
             where=self.where,
             order_by=self.order_by,
             limit=self.limit,
