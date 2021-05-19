@@ -60,7 +60,7 @@ class Model:
                 setattr(
                     cls,
                     field_value.model.meta.foreign_key_name,
-                    fields.ForeignKey(field_value.model, on_delete=field_value.on_delete),
+                    fields.ForeignKey(field_value.model, on_delete=field_value.on_delete, is_db_column=True),
                 )
 
     def _update_reverse_relationships(self, record):

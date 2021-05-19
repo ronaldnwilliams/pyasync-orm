@@ -1,5 +1,7 @@
 from typing import Optional, TYPE_CHECKING, Type, List, Tuple
 
+import inflection
+
 from pyasync_orm.database import Database
 from pyasync_orm.sql.sql import SQL
 
@@ -16,9 +18,6 @@ class ORM:
         self._sql: Optional[SQL] = None
         self._values = ()
 
-    def _get_inner_joins(self, related_columns: Tuple[str]):
-        pass
-
     def _get_orm(self) -> 'ORM':
         if self._sql is None:
             orm = ORM(self.model_class)
@@ -32,18 +31,17 @@ class ORM:
 
     def _add_inner_joins(self, field: str):
         sql = self._get_sql()
-        # order__customer__name order__price order__customer__wallet__primary
         split_fields = field.split('__')
         current_model = self.model_class
         for split_field in split_fields:
-            join_model_field = current_model.meta.table_fields[split_field]
+            join_model_field = current_model.meta.table_fields.get(split_field)
             if hasattr(join_model_field, 'model'):
                 join_model = join_model_field.model
-                sql.add_inner_join((
+                sql.add_inner_joins((
                     join_model.meta.table_name,
-                    f'({current_model}.{split_field}_id = {join_model.meta.table_name}.id)',
+                    f'({current_model.meta.table_name}.{split_field}_id = {join_model.meta.table_name}.id)',
                 ))
-                current_model = join_model.meta.table_fields
+                current_model = join_model
 
     def _add_table_names(self, fields: List[str]) -> Tuple[List[str], List[str]]:
         model_field_list = []
@@ -51,40 +49,43 @@ class ORM:
         table_fields = self.model_class.meta.table_fields
         for field in fields:
             if field in table_fields:
-                if 'REFERENCES' in table_fields[field].get_sql_string() and not field.endswith('_id'):
-                    field = f'{field}_id'
-                model_field_list.append(f'{self.model_class.meta.table_name}.{field}')
+                if getattr(table_fields[field], 'is_db_column', True):
+                    model_field_list.append(f'{self.model_class.meta.table_name}.{field}')
             else:
                 self._add_inner_joins(field)
                 split_field = field.split('__')[-2:]
-                related_field_list.append(f'{split_field[0]}.{split_field[1]}')
+                related_field_list.append(f'{inflection.tableize(split_field[0])}.{split_field[1]}')
         return model_field_list, related_field_list
 
     def _get_select_columns_from_related_tables(
             self,
             related_names: Tuple[str],
     ) -> List[str]:
-        # TODO use _add_inner_joins here
         select_columns = []
         for related_name in related_names:
+            self._add_inner_joins(related_name)
             split_related_names = related_name.split('__')
             related_model_meta = self.model_class.meta
             select_columns += [
                 f'{related_model_meta.table_name}.{field_name}'
-                for field_name in related_model_meta.table_fields.keys()
+                for field_name, field_value in related_model_meta.table_fields.items()
+                if getattr(field_value, 'is_db_column', True)
             ]
             if len(split_related_names) > 1:
                 for split_related_name in split_related_names:
                     related_model_meta = related_model_meta.table_fields[split_related_name].model.meta
                     select_columns += [
                         f'{related_model_meta.table_name}.{field_name}'
-                        for field_name in related_model_meta.table_fields.keys()
+                        for field_name, field_value in related_model_meta.table_fields.items()
+                        if getattr(field_value, 'is_db_column', True)
                     ]
         return select_columns
 
     def filter(self, **kwargs) -> 'ORM':
         orm = self._get_orm()
-        orm._sql.add_where(where_list=list(kwargs.keys()))
+        # TODO left off here with order__customer__age__gt=18 failing
+        model_field_list, related_field_list = orm._add_table_names(list(kwargs.keys()))
+        orm._sql.add_where(where_list=model_field_list + related_field_list)
         orm._values += tuple(kwargs.values())
         return orm
 
@@ -118,7 +119,9 @@ class ORM:
         Counting rows in big tables (millions of rows) can be slow.
         Possibly add an estimate method but requires some tinkering with Analyze and Vacuum.
         """
-        sql_string = self._get_sql().create_select_sql_string(columns='COUNT(*)')
+        sql = self._get_sql()
+        sql.add_select_columns(['COUNT(*)'])
+        sql_string = sql.create_select_sql_string()
         async with self.database.pool.acquire() as connection:
             results = await connection.fetch(sql_string, *self._values)
         return results[0]['count']
@@ -162,7 +165,9 @@ class ORM:
     async def all(self):
         sql = self._get_sql()
         if sql.select_columns == '':
-            sql.add_select_columns(['*'])
+            fields = list(self.model_class.meta.table_fields.keys())
+            model_columns, related_columns = self._add_table_names(fields)
+            sql.add_select_columns(model_columns)
         sql_string = sql.create_select_sql_string()
         async with self.database.pool.acquire() as connection:
             results = await connection.fetch(sql_string, *self._values)

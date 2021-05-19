@@ -120,7 +120,13 @@ ON_DELETE = namedtuple(
 
 
 class RelationshipField(BaseField):
-    def __init__(self, model: Union[str, Type['Model']], on_delete: str, **kwargs):
+    def __init__(
+            self,
+            model: Union[str, Type['Model']],
+            on_delete: str,
+            is_db_column: bool = False,
+            **kwargs,
+    ):
         super().__init__(**kwargs)
         self.model = model
         if on_delete not in set(ON_DELETE._field_defaults.values()):
@@ -129,6 +135,7 @@ class RelationshipField(BaseField):
                 f'Cannot set on delete to: {on_delete}'
             )
         self.on_delete = on_delete
+        self.is_db_column = is_db_column
 
 
 class ForeignKey(RelationshipField):

@@ -62,7 +62,7 @@ class SelectSQL(BaseSQLCommand):
         )
         if self.inner_joins:
             for inner_join in self.inner_joins:
-                _sql += f'INNER JOIN {inner_join[0]} ON {inner_join[1]}'
+                _sql += f'INNER JOIN {inner_join[0]} ON {inner_join[1]} '
         if self.where:
             _sql += f'WHERE {self.where} '
         if self.order_by:

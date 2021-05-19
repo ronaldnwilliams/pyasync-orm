@@ -83,7 +83,8 @@ class SQL:
     def add_inner_joins(self, inner_joins: Tuple[str, str]):
         if self.inner_joins is None:
             self.inner_joins = ()
-        self.inner_joins += (inner_joins, )
+        if inner_joins not in self.inner_joins:
+            self.inner_joins += (inner_joins, )
 
     def set_set_columns(
             self,
