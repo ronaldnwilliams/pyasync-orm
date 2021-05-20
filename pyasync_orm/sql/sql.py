@@ -3,7 +3,7 @@ from typing import Tuple, List, Union
 from pyasync_orm.sql.commands import InsertSQL, SelectSQL, UpdateSQL, DeleteSQL
 
 
-LOOKUPS = {
+OPERATOR_LOOKUPS = {
     'gt': '>',
     'gte': '>=',
     'lt': '<',
@@ -11,12 +11,13 @@ LOOKUPS = {
     'in': 'IN',
     'isnull': 'ISNULL',
 }
+OPERATOR_LOOKUPS_KEY_SET = set(OPERATOR_LOOKUPS.keys())
 
 
 def pop_operator(key: str) -> Tuple[List[str], str]:
     key_parts = key.split('__')
     last_key_part = key_parts[len(key_parts) - 1]
-    operator = LOOKUPS.get(last_key_part)
+    operator = OPERATOR_LOOKUPS.get(last_key_part)
 
     if operator:
         key_parts.remove(last_key_part)

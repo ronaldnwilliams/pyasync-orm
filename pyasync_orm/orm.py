@@ -3,8 +3,7 @@ from typing import Optional, TYPE_CHECKING, Type, List, Tuple
 import inflection
 
 from pyasync_orm.database import Database
-from pyasync_orm.sql.sql import SQL
-
+from pyasync_orm.sql.sql import SQL, OPERATOR_LOOKUPS, OPERATOR_LOOKUPS_KEY_SET
 
 if TYPE_CHECKING:
     from pyasync_orm.models import Model
@@ -51,10 +50,21 @@ class ORM:
             if field in table_fields:
                 if getattr(table_fields[field], 'is_db_column', True):
                     model_field_list.append(f'{self.model_class.meta.table_name}.{field}')
+                else:
+                    if not field.endswith('_set') and f'{field}_id' not in model_field_list:
+                        model_field_list.append(f'{self.model_class.meta.table_name}.{field}_id')
             else:
                 self._add_inner_joins(field)
-                split_field = field.split('__')[-2:]
-                related_field_list.append(f'{inflection.tableize(split_field[0])}.{split_field[1]}')
+                split_fields = field.split('__')
+                if split_fields[-1] in OPERATOR_LOOKUPS_KEY_SET:
+                    if len(split_fields) == 2:
+                        model_field_list.append(f'{self.model_class.meta.table_name}.{split_fields[0]}__{split_fields[1]}')
+                    else:
+                        split_fields = split_fields[-3:]
+                        related_field_list.append(f'{inflection.tableize(split_fields[0])}.{split_fields[1]}__{split_fields[2]}')
+                else:
+                    split_fields = split_fields[-2:]
+                    related_field_list.append(f'{inflection.tableize(split_fields[0])}.{split_fields[1]}')
         return model_field_list, related_field_list
 
     def _get_select_columns_from_related_tables(

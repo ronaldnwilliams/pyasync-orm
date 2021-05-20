@@ -1,11 +1,11 @@
 import pytest
 
-from pyasync_orm.sql.sql import create_where_string, pop_operator, LOOKUPS, SQL, create_set_columns_string
+from pyasync_orm.sql.sql import create_where_string, pop_operator, OPERATOR_LOOKUPS, SQL, create_set_columns_string
 
 
 @pytest.mark.parametrize(
     'lookup_key,lookup_value',
-    tuple((key, value) for key, value in LOOKUPS.items()),
+    tuple((key, value) for key, value in OPERATOR_LOOKUPS.items()),
 )
 def test_pop_operator(lookup_key, lookup_value):
     key_part = 'foo'
