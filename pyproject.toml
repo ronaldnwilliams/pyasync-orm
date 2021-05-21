@@ -6,7 +6,7 @@ authors = ["Ron Williams <rnwprogramming@gmail.com>"]
 license = "MIT License"
 
 [tool.poetry.dependencies]
-python = "^3.6"
+python = ">=3.6.1,<4.0"
 inflection = "^0.5.1"
 
 [tool.poetry.dev-dependencies]

@@ -63,10 +63,19 @@ class SQL:
         self.order_by = []
         self.limit = None
         self.set_columns_string = ''
+        self.returning = '*'
 
     def add_select_columns(self, columns: List[str]):
         if self.select_columns == '':
+            columns = [f'{column} AS {column.replace(".", "_pyaormsep_")}' for column in columns]
             self.select_columns = ', '.join(columns)
+
+    def add_returning(self, returning: List[str]):
+        returning = [f'{column} AS {column.replace(".", "_pyaormsep_")}' for column in returning]
+        self.returning = ', '.join(returning)
+
+    def add_aggregate(self, aggregate: str):
+        self.select_columns = aggregate
 
     def add_where(
             self,
@@ -109,7 +118,7 @@ class SQL:
             table_name=self.table_name,
             columns=columns,
             # TODO dynamic returning
-            returning='*',
+            returning=self.returning,
         ).sql_string
 
     def create_select_sql_string(self):
@@ -129,7 +138,7 @@ class SQL:
             set_columns_string=self.set_columns_string,
             where=self.where,
             # TODO dynamic returning
-            returning='*',
+            returning=self.returning,
         ).sql_string
 
     def create_delete_sql_string(self):
@@ -137,5 +146,5 @@ class SQL:
             table_name=self.table_name,
             where=self.where,
             # TODO dynamic returning
-            returning='*'
+            returning=self.returning,
         ).sql_string

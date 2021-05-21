@@ -63,31 +63,15 @@ class Model:
                     fields.ForeignKey(field_value.model, on_delete=field_value.on_delete, is_db_column=True),
                 )
 
-    def _update_reverse_relationships(self, record):
-        reverse_relationship_fields = tuple(
-            (field_key, field_value, )
-            for field_key, field_value in self.__dict__.items()
-            if isinstance(field_value, fields.ReverseRelationship)
-        )
-        for field in reverse_relationship_fields:
-            # TODO check record for kwargs
-            field_key, field_value = field
-            setattr(
-                self,
-                field_key,
-                ModelSet(field_value.model, self),
-            )
-
-    def update_relationships(self, record: dict):
-        self._update_reverse_relationships(record)
-
     async def refresh_from_db(self):
         if isinstance(self.id, int):
+            # TODO save the sql_string and values, on the model, in order to make another db call
             refreshed = await self.orm.get(id=self.id)
             self.__dict__.update(refreshed.__dict__)
 
 
 class ModelSet:
+    # TODO is this how I want to handle model sets?
     def __init__(
             self,
             model_class,

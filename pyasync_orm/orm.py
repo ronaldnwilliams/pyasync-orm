@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Optional, TYPE_CHECKING, Type, List, Tuple
 
 import inflection
@@ -91,9 +92,43 @@ class ORM:
                     ]
         return select_columns
 
+    def _convert_to_model(self, record: dict):
+        model = self.model_class()
+        related_models = {}
+        for table_and_field_name, value in record.items():
+            table_name, field_name = table_and_field_name.split('_pyaormsep_')
+            if table_name == model.meta.table_name:
+                setattr(model, field_name, value)
+            elif table_name in related_models:
+                setattr(related_models[table_name], field_name, value)
+            else:
+                model_name = inflection.singularize(table_name)
+                if hasattr(model, model_name):
+                    model_instance = getattr(model, model_name).model()
+                    related_models[table_name] = model_instance
+                    setattr(model, model_name, model_instance)
+                    setattr(model_instance, field_name, value)
+                else:
+                    for related_model in list(related_models.values()):
+                        if hasattr(related_model, model_name):
+                            model_instance = getattr(related_model, model_name).model()
+                            related_models[table_name] = model_instance
+                            setattr(related_model, model_name, model_instance)
+                            setattr(model_instance, field_name, value)
+        return model
+
+    def _parse_upsert_kwargs(self, kwargs: dict):
+        model_instances = []
+        remaining_kwargs = {}
+        for key, value in kwargs.items():
+            if isinstance(value, self.model_class.__base__):
+                model_instances.append(value)
+            else:
+                remaining_kwargs[key] = value
+        return model_instances, remaining_kwargs
+
     def filter(self, **kwargs) -> 'ORM':
         orm = self._get_orm()
-        # TODO left off here with order__customer__age__gt=18 failing
         model_field_list, related_field_list = orm._add_table_names(list(kwargs.keys()))
         orm._sql.add_where(where_list=model_field_list + related_field_list)
         orm._values += tuple(kwargs.values())
@@ -130,33 +165,24 @@ class ORM:
         Possibly add an estimate method but requires some tinkering with Analyze and Vacuum.
         """
         sql = self._get_sql()
-        sql.add_select_columns(['COUNT(*)'])
+        sql.add_aggregate('COUNT(*)')
         sql_string = sql.create_select_sql_string()
         async with self.database.pool.acquire() as connection:
             results = await connection.fetch(sql_string, *self._values)
         return results[0]['count']
 
-    def convert_to_model(self, record: dict):
-        model = self.model_class()
-        model.__dict__.update(record)
-        # model.update_relationships(record)
-        return model
-
     async def create(self, **kwargs):
-        model_instances = []
-        for kwargs_ in list(kwargs.items()):
-            key, value = kwargs_
-            if getattr(value, '__class__', object).__base__ == self.model_class.__base__:
-                model_instances.append(value)
-                del kwargs[key]
-        columns = list(kwargs.keys()) + [f'{instance.__class__.__name__.lower()}_id' for instance in model_instances]
-        values = self._values + tuple(kwargs.values()) + tuple(instance.id for instance in model_instances)
-        # TODO can we return the related model too?
-        sql_string = self._get_sql().create_insert_sql_string(columns=columns)
+        sql = self._get_sql()
+        model_instances, remaining_kwargs = self._parse_upsert_kwargs(kwargs)
+        columns = list(remaining_kwargs.keys()) + [f'{instance.__class__.__name__.lower()}_id' for instance in model_instances]
+        values = self._values + tuple(remaining_kwargs.values()) + tuple(instance.id for instance in model_instances)
+        model_columns, related_columns = self._add_table_names(list(self.model_class.meta.table_fields.keys()))
+        sql.add_returning(model_columns)
+        sql_string = sql.create_insert_sql_string(columns=columns)
         async with self.database.pool.acquire() as connection:
             async with connection.transaction():
                 results = await connection.fetch(sql_string, *values)
-        return self.convert_to_model(dict(results[0]))
+        return self._convert_to_model(dict(results[0]))
 
     async def bulk_create(self, **kwargs):
         pass
@@ -170,33 +196,40 @@ class ORM:
         values = self._values + tuple(kwargs.values())
         async with self.database.pool.acquire() as connection:
             results = await connection.fetch(sql_string, *values)
-        return self.convert_to_model(dict(results[0]))
+        return self._convert_to_model(dict(results[0]))
 
     async def all(self):
         sql = self._get_sql()
-        if sql.select_columns == '':
-            fields = list(self.model_class.meta.table_fields.keys())
-            model_columns, related_columns = self._add_table_names(fields)
-            sql.add_select_columns(model_columns)
+        fields = list(self.model_class.meta.table_fields.keys())
+        model_columns, related_columns = self._add_table_names(fields)
+        sql.add_select_columns(model_columns)
         sql_string = sql.create_select_sql_string()
         async with self.database.pool.acquire() as connection:
             results = await connection.fetch(sql_string, *self._values)
-        return [self.convert_to_model(dict(result)) for result in results]
+        return [self._convert_to_model(dict(result)) for result in results]
 
     async def update(self, **kwargs):
+        sql = self._get_sql()
+        fields = list(self.model_class.meta.table_fields.keys())
+        model_columns, related_columns = self._add_table_names(fields)
+        sql.add_returning(model_columns)
         values = self._values + tuple(kwargs.values())
-        sql_string = self._get_sql().create_update_sql_string(set_columns=list(kwargs.keys()))
+        sql_string = sql.create_update_sql_string(set_columns=list(kwargs.keys()))
         async with self.database.pool.acquire() as connection:
             async with connection.transaction():
                 results = await connection.fetch(sql_string, *values)
-        return [self.convert_to_model(dict(result)) for result in results]
+        return [self._convert_to_model(dict(result)) for result in results]
 
     async def bulk_update(self, **kwargs):
         pass
 
     async def delete(self):
-        sql_string = self._get_sql().create_delete_sql_string()
+        sql = self._get_sql()
+        fields = list(self.model_class.meta.table_fields.keys())
+        model_columns, related_columns = self._add_table_names(fields)
+        sql.add_returning(model_columns)
+        sql_string = sql.create_delete_sql_string()
         async with self.database.pool.acquire() as connection:
             async with connection.transaction():
                 results = await connection.fetch(sql_string, *self._values)
-        return [self.convert_to_model(dict(result)) for result in results]
+        return [self._convert_to_model(dict(result)) for result in results]
