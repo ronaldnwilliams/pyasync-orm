@@ -168,8 +168,7 @@ class ORM:
         sql.add_returning(model_columns)
         sql_string = sql.create_insert_sql_string(columns=columns)
         async with self.database.pool.acquire() as connection:
-            async with connection.transaction():
-                results = await connection.fetch(sql_string, *values)
+            results = await connection.fetch(sql_string, *values)
         return self._convert_to_model(dict(results[0]))
 
     async def bulk_create(self, **kwargs):
@@ -204,8 +203,7 @@ class ORM:
         values = self._values + tuple(kwargs.values())
         sql_string = sql.create_update_sql_string(set_columns=list(kwargs.keys()))
         async with self.database.pool.acquire() as connection:
-            async with connection.transaction():
-                results = await connection.fetch(sql_string, *values)
+            results = await connection.fetch(sql_string, *values)
         return [self._convert_to_model(dict(result)) for result in results]
 
     async def bulk_update(self, **kwargs):
@@ -218,6 +216,5 @@ class ORM:
         sql.add_returning(model_columns)
         sql_string = sql.create_delete_sql_string()
         async with self.database.pool.acquire() as connection:
-            async with connection.transaction():
-                results = await connection.fetch(sql_string, *self._values)
+            results = await connection.fetch(sql_string, *self._values)
         return [self._convert_to_model(dict(result)) for result in results]
