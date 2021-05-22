@@ -72,24 +72,12 @@ class ORM:
             self,
             related_names: Tuple[str],
     ) -> List[str]:
-        select_columns = []
+        select_columns = self.model_class.meta.select_fields[self.model_class.meta.table_name]
         for related_name in related_names:
             self._add_inner_joins(related_name)
             split_related_names = related_name.split('__')
-            related_model_meta = self.model_class.meta
-            select_columns += [
-                f'{related_model_meta.table_name}.{field_name}'
-                for field_name, field_value in related_model_meta.table_fields.items()
-                if getattr(field_value, 'is_db_column', True)
-            ]
-            if len(split_related_names) > 1:
-                for split_related_name in split_related_names:
-                    related_model_meta = related_model_meta.table_fields[split_related_name].model.meta
-                    select_columns += [
-                        f'{related_model_meta.table_name}.{field_name}'
-                        for field_name, field_value in related_model_meta.table_fields.items()
-                        if getattr(field_value, 'is_db_column', True)
-                    ]
+            for split_related_name in split_related_names:
+                select_columns += self.model_class.meta.select_fields[inflection.tableize(split_related_name)]
         return select_columns
 
     def _convert_to_model(self, record: dict):
@@ -190,7 +178,7 @@ class ORM:
     async def get(self, **kwargs):
         sql = self._get_sql()
         model_columns, related_columns = self._add_table_names(list(kwargs.keys()))
-        sql.add_select_columns(model_columns)
+        sql.add_select_columns(self.model_class.meta.select_fields[self.model_class.meta.table_name])
         sql.add_where(model_columns + related_columns)
         sql_string = sql.create_select_sql_string()
         values = self._values + tuple(kwargs.values())

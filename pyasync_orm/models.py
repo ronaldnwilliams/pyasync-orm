@@ -17,6 +17,25 @@ class Meta:
         self.foreign_key_name = foreign_key_name
         self.reverse_name = reverse_name
         self.table_fields: Dict[str, Type[fields.BaseField]] = {}
+        self.select_fields: Dict[str, List[str]] = {}
+
+    def set_table_fields(self, model_class: Type['Model']):
+        self.table_fields = {
+            k: v
+            for k, v in model_class.__dict__.items()
+            if isinstance(v, fields.BaseField)
+        }
+
+    def set_select_fields(self):
+        select_fields = {self.table_name: []}
+        for field_name, field_value in self.table_fields.items():
+            if getattr(field_value, 'is_db_column', True):
+                select_fields[self.table_name].append(f'{self.table_name}.{field_name}')
+            else:
+                if isinstance(field_value, fields.ForeignKey):
+                    meta = field_value.model.meta
+                    select_fields.update(meta.select_fields)
+        self.select_fields = select_fields
 
 
 class Model:
@@ -34,11 +53,8 @@ class Model:
             reverse_name=f'{underscore_name}_set',
         )
         cls._set_relationships()
-        cls.meta.table_fields = {
-            k: v
-            for k, v in cls.__dict__.items()
-            if isinstance(v, fields.BaseField)
-        }
+        cls.meta.set_table_fields(cls)
+        cls.meta.set_select_fields()
         cls.orm = ORM(cls)
 
     def __str__(self):
