@@ -1,10 +1,9 @@
-from copy import deepcopy
 from typing import Optional, TYPE_CHECKING, Type, List, Tuple
 
 import inflection
 
 from pyasync_orm.database import Database
-from pyasync_orm.sql.sql import SQL, OPERATOR_LOOKUPS, OPERATOR_LOOKUPS_KEY_SET
+from pyasync_orm.sql.sql import SQL, OPERATOR_LOOKUPS_KEY_SET
 
 if TYPE_CHECKING:
     from pyasync_orm.models import Model
@@ -138,14 +137,16 @@ class ORM:
         orm._sql.set_limit(number)
         return orm
 
-    def select_related(self, *args: str):
+    def select_related(self, *args: str) -> 'ORM':
         orm = self._get_orm()
         select_columns = self._get_select_columns_from_related_tables(args)
         orm._sql.add_select_columns(select_columns)
         return orm
 
-    def prefetch_related(self, *args: str):
-        pass
+    def prefetch_related(self, *args: str) -> 'ORM':
+        orm = self._get_orm()
+        orm._sql.set_prefetch_related(args)
+        return orm
 
     async def count(self):
         """
