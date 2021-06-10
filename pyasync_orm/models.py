@@ -6,55 +6,42 @@ from pyasync_orm import fields
 from pyasync_orm.orm import ORM
 
 
-class Meta:
+class ModelMeta:
     def __init__(
         self,
-        table_name: str,
-        foreign_key_name: str,
-        reverse_name: str,
+        model_class: Type['Model'],
     ):
-        self.table_name = table_name
-        self.foreign_key_name = foreign_key_name
-        self.reverse_name = reverse_name
+        self.model_class = model_class
+        self.table_name = inflection.tableize(model_class.__name__)
         self.table_fields: Dict[str, Type[fields.BaseField]] = {}
-        self.select_fields: Dict[str, List[str]] = {}
+        self.select_fields: Dict[str, List[str]] = {self.table_name: []}
+        self._setup_meta_data()
 
-    def set_table_fields(self, model_class: Type['Model']):
-        self.table_fields = {
-            k: v
-            for k, v in model_class.__dict__.items()
-            if isinstance(v, fields.BaseField)
-        }
-
-    def set_select_fields(self):
-        select_fields = {self.table_name: []}
-        for field_name, field_value in self.table_fields.items():
-            if getattr(field_value, 'is_db_column', True):
-                select_fields[self.table_name].append(f'{self.table_name}.{field_name}')
-            else:
-                if isinstance(field_value, fields.ForeignKey):
-                    meta = field_value.model.meta
-                    select_fields.update(meta.select_fields)
-        self.select_fields = select_fields
+    def _setup_meta_data(self):
+        for field_name, field_value in self.model_class.__dict__.items():
+            if isinstance(field_value, fields.BaseField):
+                if getattr(field_value, 'is_db_column', True):
+                    self.table_fields[field_name]= field_value
+                    self.select_fields[self.table_name].append(f'{self.table_name}.{field_name}')
+                elif isinstance(field_value, fields.ForeignKey):
+                    self.select_fields.update(field_value.model.meta.select_fields)
 
 
 class Model:
-    orm: ORM
     id: fields.BigInt
-    meta: Meta
+    _foreign_key_name: str
+    _reverse_name: str
+    meta: ModelMeta
+    orm: ORM
 
     def __init_subclass__(cls, **kwargs):
         super().__init_subclass__(**kwargs)
-        cls.id = fields.BigInt(primary_key=True)
         underscore_name = inflection.underscore(cls.__name__)
-        cls.meta = Meta(
-            table_name=inflection.tableize(cls.__name__),
-            foreign_key_name=f'{underscore_name}_id',
-            reverse_name=f'{underscore_name}_set',
-        )
+        cls._foreign_key_name = f'{underscore_name}_id'
+        cls._reverse_name = f'{underscore_name}_set'
+        cls.id = fields.BigInt(primary_key=True)
         cls._set_relationships()
-        cls.meta.set_table_fields(cls)
-        cls.meta.set_select_fields()
+        cls.meta = ModelMeta(model_class=cls)
         cls.orm = ORM(cls)
 
     def __str__(self):
@@ -70,12 +57,12 @@ class Model:
             if isinstance(field_value, fields.ForeignKey):
                 setattr(
                     field_value.model,
-                    cls.meta.reverse_name,
+                    cls._reverse_name,
                     fields.ReverseRelationship(cls, on_delete=field_value.on_delete),
                 )
                 setattr(
                     cls,
-                    field_value.model.meta.foreign_key_name,
+                    field_value.model.foreign_key_name,
                     fields.ForeignKey(field_value.model, on_delete=field_value.on_delete, is_db_column=True),
                 )
 
