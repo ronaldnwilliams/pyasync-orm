@@ -18,8 +18,11 @@ class ORM:
         self._model_class = model_class
         self._sql = sql
 
-    def _get_orm(self):
-        return ORM(self._model_class, sql=SQL()) if self._sql is None else self
+    def _get_orm(self) -> 'ORM':
+        return ORM(
+            self._model_class,
+            sql=SQL(self._model_class.table_name),
+        ) if self._sql is None else self
 
     async def create(self, **kwargs) -> 'Model':
         sql = SQL.build_insert(
@@ -43,7 +46,7 @@ class ORM:
     async def get(self, **kwargs) -> 'Model':
         orm = self._get_orm()
         orm._sql.add_where(kwargs)
-        sql, values = orm._sql.build_select(table_name=self._model_class.table_name)
+        sql, values = orm._sql.build_select()
         async with self.database.get_connection() as connection:
             results = await connection.fetch(sql, *values)
         if len(results) > 1:
@@ -52,21 +55,21 @@ class ORM:
 
     async def all(self) -> List['Model']:
         orm = self._get_orm()
-        sql, values = orm._sql.build_select(table_name=self._model_class.table_name)
+        sql, values = orm._sql.build_select()
         async with self.database.get_connection() as connection:
             results = await connection.fetch(sql, *values)
         return [self._model_class.from_db(result) for result in results]
 
     async def update(self) -> List['Model']:
         orm = self._get_orm()
-        sql, values = orm._sql.build_update(table_name=self._model_class.table_name)
+        sql, values = orm._sql.build_update()
         async with self.database.get_connection() as connection:
             results = await connection.fetch(sql, *values)
         return [self._model_class.from_db(result) for result in results]
 
     async def delete(self) -> List['Model']:
         orm = self._get_orm()
-        sql, values = orm._sql.build_delete(table_name=self._model_class.table_name)
+        sql, values = orm._sql.build_delete()
         async with self.database.get_connection() as connection:
             results = await connection.fetch(sql, *values)
         return [self._model_class.from_db(result) for result in results]
