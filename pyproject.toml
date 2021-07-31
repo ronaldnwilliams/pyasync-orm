@@ -3,15 +3,29 @@ name = "pyasync-orm"
 version = "0.1.0"
 description = "An async ORM."
 authors = ["Ron Williams <rnwprogramming@gmail.com>"]
-license = "MIT License"
+license = "MIT"
+readme = "README.md"
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+]
+include = [
+    "LICENSE",
+]
 
 [tool.poetry.dependencies]
-python = ">=3.6.1,<4.0"
+python = "^3.7"
 inflection = "^0.5.1"
 asyncpg = {version = "^0.23.0", optional = true}
 
+[tool.poetry.extras]
+asyncpg = ["asyncpg"]
+
 [tool.poetry.dev-dependencies]
-pytest = "^6.2.3"
+pytest = "^6.2.4"
 ipython = {version = "^7.23.0", python = "^3.7", optional = true}
 pytest-asyncio = "^0.15.1"
 asyncpg = "^0.23.0"

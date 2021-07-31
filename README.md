@@ -1,19 +1,10 @@
-# Pyasync-ORM
+# pyasync orm
+
+[![pypi](https://img.shields.io/pypi/v/pyasync-orm?color=blue&style=plastic)](https://pypi.python.org/pypi/pyasync-orm)
+[![versions](https://img.shields.io/pypi/pyversions/pyasync-orm)](https://pypi.org/pypi/pyversions/pyasync-orm)
+
+An asynchronous database ORM for Python.
 
 ## Installation
 
-
-## V.1 TODOs
-* Prefetch related
-* Handle reverse relationships
-* Raw SQL
-* Transactions
-* JSON, dict, and pydantic results
-* Aggregation
-* Finish fields
-* Model instance creation and saving
-* Migrations
-* Init DB
-* Clean up DB client
-* Refactor
-* Performance tuning
+Install using `pip install pyasync-orm` or `poetry add pyasync-orm`

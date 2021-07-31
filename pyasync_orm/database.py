@@ -1,27 +1,22 @@
-import importlib
-from typing import Type
-from urllib.parse import urlparse
+from contextlib import asynccontextmanager
+from typing import Type, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from pyasync_orm.clients.abstract_client import AbstractClient
 
 
 class Database:
-    CLIENTS = {
-        'postgresql': 'pyasync_orm.clients.asyncpg'
-    }
-
     def __init__(self):
-        self.url = ''
         self.client = None
-        self.pool = None
 
-    def get_client(self, client_key: str) -> Type['pyasync_orm.clients.base.BaseClient']:
-        client_path = self.CLIENTS.get(client_key)
-        if client_path is None:
-            raise ValueError(f'Client {client_key} not supported.')
-        client_module = importlib.import_module(client_path)
-        return client_module.Client
+    async def connect(self, client: Type['AbstractClient'], *args, **kwargs):
+        self.client = client()
+        await self.client.create_connection_pool(*args, **kwargs)
 
-    async def connect(self, url: str):
-        self.url = url
-        parsed_url = urlparse(url)
-        self.client = self.get_client(parsed_url.scheme)
-        self.pool = await self.client.create_pool(url)
+    async def close(self):
+        await self.client.close_connection_pool()
+
+    @asynccontextmanager
+    async def get_connection(self):
+        async with self.client.get_connection() as connection:
+            yield connection
