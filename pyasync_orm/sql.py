@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple, Any
+from typing import List, Optional, Tuple
 
 
 def not_implemented(*args, **kwargs):
@@ -49,31 +49,53 @@ class Condition:
         key: str,
         value: str,
     ):
-        pass
+        self.key, self.operator, self.value = self.split_by_operator(
+            key=key,
+            value=value,
+        )
 
     def __str__(self):
         return f'{self.key} {self.operator} {self.value}'
 
+    def split_by_operator(
+        self,
+        key: str,
+        value: str
+    ) -> Tuple[str, str, str]:
+        operator = '='
+        keys_split = key.split('__')
+        if len(keys_split) > 1:
+            operator_function = LOOKUPS.get(keys_split[-1])
+            if operator_function is not None:
+                key, operator, value = operator_function(key, value)
+        return key, operator, value
+
 
 class Where:
-    conditions: List[Condition]
+    conditions_strings: List[str]
 
-    def __init__(
-        self,
-        kwargs: dict,
-        not_: bool = False,
-    ):
-        pass
+    def __init__(self):
+        self.conditions_strings = []
 
     def add(
         self,
-        kwargs: dict,
+        where_dict: dict,
         not_: bool = False,
     ):
-        pass
+        self.conditions_strings.append(
+            'NOT ' if not_ else ''
+            + '('
+            + 'AND, '.join([
+                str(Condition(key=key, value=value))
+                for key, value in where_dict.items()
+            ])
+            + ')'
+        )
 
     def __str__(self):
-        return 'AND '.join([str(condition) for condition in self.conditions])
+        where = 'WHERE '
+        where += 'AND '.join([condition for condition in self.conditions_strings])
+        return where
 
 
 class SQL:
@@ -82,21 +104,48 @@ class SQL:
 
     def __init__(self, table_name: str):
         self.table_name = table_name
+        self.values = ()
+        self.where = Where()
 
-    def add_where(self, **kwargs):
-        pass
+    def _extract_values(self, values_dict: dict) -> dict:
+        new_values = tuple(values_dict.values())
+        placeholder_values = list(range(len(self.values), len(new_values) + 1))
+        self.values += new_values
+        return {
+            key: placeholder_values.pop(0)
+            for key in values_dict
+        }
 
-    def add_where_not(self, **kwargs):
-        pass
+    def add_where(
+        self,
+        where_dict: dict,
+        not_: bool = False,
+    ):
+        extracted_where_dict = self._extract_values(values_dict=where_dict)
+        self.where.add(where_dict=extracted_where_dict, not_=not_)
 
-    def build_select(self) -> Tuple[str, Tuple[Any]]:
-        pass
+    def build_select(self) -> Tuple[str, Tuple]:
+        return (
+            f'SELECT * FROM {self.table_name} {self.where} RETURNING *',
+            self.values,
+        )
 
-    def build_update(self) -> Tuple[str, Tuple[Any]]:
-        pass
+    def build_update(self, set_dict: dict) -> Tuple[str, Tuple]:
+        extracted_set_dict = self._extract_values(values_dict=set_dict)
+        set_values = ', '.join(
+            f'{key} = {value}'
+            for key, value in extracted_set_dict
+        )
+        return (
+            f'UPDATE {self.table_name} SET {set_values} {self.where} RETURNING *',
+            self.values,
+        )
 
-    def build_delete(self) -> Tuple[str, Tuple[Any]]:
-        pass
+    def build_delete(self) -> Tuple[str, Tuple]:
+        return (
+            f'DELETE FROM {self.table_name} {self.where} RETURNING *',
+            self.values,
+        )
 
     @classmethod
     def build_insert(

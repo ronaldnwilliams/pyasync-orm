@@ -35,17 +35,17 @@ class ORM:
 
     def filter(self, **kwargs) -> 'ORM':
         orm = self._get_orm()
-        orm._sql.add_where(kwargs)
+        orm._sql.add_where(where_dict=kwargs)
         return orm
 
     def exclude(self, **kwargs) -> 'ORM':
         orm = self._get_orm()
-        orm._sql.add_where_not(kwargs)
+        orm._sql.add_where(where_dict=kwargs, not_=True)
         return orm
 
     async def get(self, **kwargs) -> 'Model':
         orm = self._get_orm()
-        orm._sql.add_where(kwargs)
+        orm._sql.add_where(where_dict=kwargs)
         sql, values = orm._sql.build_select()
         async with self.database.get_connection() as connection:
             results = await connection.fetch(sql, *values)
@@ -60,9 +60,9 @@ class ORM:
             results = await connection.fetch(sql, *values)
         return [self._model_class.from_db(result) for result in results]
 
-    async def update(self) -> List['Model']:
+    async def update(self, **kwargs) -> List['Model']:
         orm = self._get_orm()
-        sql, values = orm._sql.build_update()
+        sql, values = orm._sql.build_update(set_dict=kwargs)
         async with self.database.get_connection() as connection:
             results = await connection.fetch(sql, *values)
         return [self._model_class.from_db(result) for result in results]
