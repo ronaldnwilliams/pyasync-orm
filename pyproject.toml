@@ -1,10 +1,12 @@
 [tool.poetry]
 name = "pyasync-orm"
-version = "0.1.1"
+version = "0.1.2"
 description = "An async ORM."
 authors = ["Ron Williams <rnwprogramming@gmail.com>"]
 license = "MIT"
 readme = "README.md"
+repository = "https://github.com/ronaldnwilliams/pyasync-orm"
+keywords = ["orm", "aysnc", "databse", "async-orm", "async-database"]
 classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3 :: Only",
