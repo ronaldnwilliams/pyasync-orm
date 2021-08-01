@@ -23,6 +23,6 @@ class Model:
     @classmethod
     def from_db(cls, data: dict) -> 'Model':
         instance = cls()
-        for key in data:
-            setattr(instance, key, data[key])
+        for key, value in data.items():
+            setattr(instance, key, value)
         return instance

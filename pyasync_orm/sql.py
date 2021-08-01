@@ -55,7 +55,7 @@ class Condition:
         )
 
     def __str__(self):
-        return f'{self.key} {self.operator} {self.value}'
+        return f'{self.key} {self.operator} ${self.value}'
 
     def split_by_operator(
         self,
@@ -109,7 +109,7 @@ class SQL:
 
     def _extract_values(self, values_dict: dict) -> dict:
         new_values = tuple(values_dict.values())
-        placeholder_values = list(range(len(self.values), len(new_values) + 1))
+        placeholder_values = list(range(len(self.values) + 1, len(new_values) + 1))
         self.values += new_values
         return {
             key: placeholder_values.pop(0)
@@ -126,7 +126,7 @@ class SQL:
 
     def build_select(self) -> Tuple[str, Tuple]:
         return (
-            f'SELECT * FROM {self.table_name} {self.where} RETURNING *',
+            f'SELECT * FROM {self.table_name} {self.where}',
             self.values,
         )
 
@@ -153,6 +153,9 @@ class SQL:
         table_name: str,
         column_list: List[str],
     ) -> str:
-        columns = f'({", ".join(column_list)})' if column_list else ''
-        values = f'VALUES({", ".join([f"${num}" for num in range(1, len(column_list) + 1)])})' if columns else ''
+        if not column_list:
+            columns, values = 'DEFAULT', 'VALUES'
+        else:
+            columns = f'({", ".join(column_list)})' if column_list else ''
+            values = f'VALUES({", ".join([f"${num}" for num in range(1, len(column_list) + 1)])})' if columns else ''
         return f'INSERT INTO {table_name} {columns} {values} RETURNING *'
