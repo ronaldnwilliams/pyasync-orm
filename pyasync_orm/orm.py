@@ -73,3 +73,10 @@ class ORM:
         async with self.database.get_connection() as connection:
             results = await connection.fetch(sql, *values)
         return [self._model_class.from_db(result) for result in results]
+
+    async def count(self):
+        orm = self._get_orm()
+        sql, values = orm._sql.build_count()
+        async with self.database.get_connection() as connection:
+            results = await connection.fetch(sql, *values)
+        return results[0]['count']

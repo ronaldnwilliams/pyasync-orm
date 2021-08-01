@@ -150,6 +150,12 @@ class SQL:
             self.values,
         )
 
+    def build_count(self) -> Tuple[str, Tuple]:
+        return (
+            f'SELECT COUNT(*) FROM {self.table_name} {self.where}',
+            self.values,
+        )
+
     @classmethod
     def build_insert(
         cls,

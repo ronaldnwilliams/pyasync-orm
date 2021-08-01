@@ -80,4 +80,12 @@ class TestORM:
         customers_deleted = await Customer.orm.delete()
 
         assert customers_deleted[0].id == customer.id
-        # assert Customer.orm.count() == 0
+        assert await Customer.orm.count() == 0
+
+    @pytest.mark.asyncio
+    async def test_delete(self):
+        assert await Customer.orm.count() == 0
+
+        await Customer.orm.create()
+
+        assert await Customer.orm.count() == 1
