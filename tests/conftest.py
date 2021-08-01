@@ -16,7 +16,6 @@ def event_loop(request):
 
 @pytest.fixture(scope='session', autouse=True)
 async def create_db():
-    x = 1
     await ORM.database.connect(
         client=AsyncPGClient,
         dsn='postgresql://postgres@localhost/postgres',
@@ -43,7 +42,6 @@ async def create_db():
 
 @pytest.fixture(autouse=True)
 async def truncate_tables(create_db):
-    x = 1
     async with ORM.database.get_connection() as connection:
         await connection.execute(
             'TRUNCATE customers'

@@ -49,7 +49,7 @@ class Condition:
         key: str,
         value: str,
     ):
-        self.key, self.operator, self.value = self.split_by_operator(
+        self.key, self.operator, self.value = self._split_by_operator(
             key=key,
             value=value,
         )
@@ -57,7 +57,7 @@ class Condition:
     def __str__(self):
         return f'{self.key} {self.operator} ${self.value}'
 
-    def split_by_operator(
+    def _split_by_operator(
         self,
         key: str,
         value: str
@@ -93,8 +93,11 @@ class Where:
         )
 
     def __str__(self):
-        where = 'WHERE '
-        where += 'AND '.join([condition for condition in self.conditions_strings])
+        if self.conditions_strings:
+            where = 'WHERE '
+            where += 'AND '.join([condition for condition in self.conditions_strings])
+        else:
+            where = ''
         return where
 
 
