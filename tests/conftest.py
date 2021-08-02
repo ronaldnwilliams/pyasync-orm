@@ -32,6 +32,7 @@ async def create_db():
     await ORM.database.connect(
         client=AsyncPGClient,
         dsn='postgresql://postgres@localhost/test_async_orm_db',
+        models=['tests.models']
     )
 
     async with ORM.database.get_connection() as connection:

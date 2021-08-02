@@ -1,13 +1,8 @@
 import pytest
 
-from pyasync_orm import fields
-from pyasync_orm.models import Model
 from pyasync_orm.orm import ORM
 from pyasync_orm.sql import SQL
-
-
-class Customer(Model):
-    first_name = fields.VarChar(max_length=100)
+from tests.models import Customer
 
 
 class TestORM:
