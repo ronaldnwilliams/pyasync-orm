@@ -16,3 +16,9 @@ class Serial(BaseField):
 
 class BigSerial(BaseField):
     pass
+
+
+class VarChar(BaseField):
+    def __init__(self, max_length: int, **kwargs):
+        self.max_length = max_length
+        super().__init__(**kwargs)

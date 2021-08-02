@@ -1,12 +1,13 @@
 import pytest
 
+from pyasync_orm import fields
 from pyasync_orm.models import Model
 from pyasync_orm.orm import ORM
 from pyasync_orm.sql import SQL
 
 
 class Customer(Model):
-    pass
+    first_name = fields.VarChar(max_length=100)
 
 
 class TestORM:
@@ -66,12 +67,11 @@ class TestORM:
 
     @pytest.mark.asyncio
     async def test_update(self):
-        # await Customer.orm.create(name='Ron')
-        #
-        # updated_customers = await Customer.orm.update(name='Ronald')
-        #
-        # assert updated_customers[0].name == 'Ronald'
-        pass
+        await Customer.orm.create(first_name='Ron')
+
+        updated_customers = await Customer.orm.update(first_name='Ronald')
+
+        assert updated_customers[0].first_name == 'Ronald'
 
     @pytest.mark.asyncio
     async def test_delete(self):

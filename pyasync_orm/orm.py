@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Type, Optional, List
+from typing import TYPE_CHECKING, Type, Optional, List, TypeVar
 
 from pyasync_orm.database import Database
 from pyasync_orm.sql import SQL
@@ -6,13 +6,15 @@ from pyasync_orm.sql import SQL
 if TYPE_CHECKING:
     from pyasync_orm.models import Model
 
+    ModelType = TypeVar('ModelType', bound=Model)  # removes IDE warning on subclasses
+
 
 class ORM:
     database = Database()
 
     def __init__(
         self,
-        model_class: Type['Model'],
+        model_class: Type['ModelType'],
         sql: Optional[SQL] = None,
     ):
         self._model_class = model_class
@@ -24,7 +26,7 @@ class ORM:
             sql=SQL(self._model_class.table_name),
         ) if self._sql is None else self
 
-    async def create(self, **kwargs) -> 'Model':
+    async def create(self, **kwargs) -> 'ModelType':
         sql = SQL.build_insert(
             table_name=self._model_class.table_name,
             column_list=list(kwargs.keys()),
@@ -43,7 +45,7 @@ class ORM:
         orm._sql.add_where(where_dict=kwargs, not_=True)
         return orm
 
-    async def get(self, **kwargs) -> 'Model':
+    async def get(self, **kwargs) -> 'ModelType':
         orm = self._get_orm()
         orm._sql.add_where(where_dict=kwargs)
         sql, values = orm._sql.build_select()
@@ -53,28 +55,28 @@ class ORM:
             raise ValueError(f'{self._model_class.__name__} get query found more than one record.')
         return self._model_class.from_db(results[0])
 
-    async def all(self) -> List['Model']:
+    async def all(self) -> List['ModelType']:
         orm = self._get_orm()
         sql, values = orm._sql.build_select()
         async with self.database.get_connection() as connection:
             results = await connection.fetch(sql, *values)
         return [self._model_class.from_db(result) for result in results]
 
-    async def update(self, **kwargs) -> List['Model']:
+    async def update(self, **kwargs) -> List['ModelType']:
         orm = self._get_orm()
         sql, values = orm._sql.build_update(set_dict=kwargs)
         async with self.database.get_connection() as connection:
             results = await connection.fetch(sql, *values)
         return [self._model_class.from_db(result) for result in results]
 
-    async def delete(self) -> List['Model']:
+    async def delete(self) -> List['ModelType']:
         orm = self._get_orm()
         sql, values = orm._sql.build_delete()
         async with self.database.get_connection() as connection:
             results = await connection.fetch(sql, *values)
         return [self._model_class.from_db(result) for result in results]
 
-    async def count(self):
+    async def count(self) -> int:
         orm = self._get_orm()
         sql, values = orm._sql.build_count()
         async with self.database.get_connection() as connection:

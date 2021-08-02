@@ -136,8 +136,8 @@ class SQL:
     def build_update(self, set_dict: dict) -> Tuple[str, Tuple]:
         extracted_set_dict = self._extract_values(values_dict=set_dict)
         set_values = ', '.join(
-            f'{key} = {value}'
-            for key, value in extracted_set_dict
+            f'{key} = ${value}'
+            for key, value in extracted_set_dict.items()
         )
         return (
             f'UPDATE {self.table_name} SET {set_values} {self.where} RETURNING *',

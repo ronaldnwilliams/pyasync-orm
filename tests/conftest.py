@@ -36,7 +36,12 @@ async def create_db():
 
     async with ORM.database.get_connection() as connection:
         await connection.execute(
-            'CREATE TABLE customers(id BIGSERIAL PRIMARY KEY)'
+            """
+                CREATE TABLE customers(
+                    id BIGSERIAL PRIMARY KEY,
+                    first_name VARCHAR(100)
+                )
+            """
         )
 
 
