@@ -3,7 +3,7 @@ from pyasync_orm.orm import ORM
 
 
 class Migration:
-    async def _get_database_data(self):
+    async def _get_database_data(self, table_name: str):
         async with ORM.database.get_connection() as connection:
             column_data = await connection.fetch("""
                 SELECT
@@ -13,19 +13,24 @@ class Migration:
                 FROM
                      information_schema.columns
                 WHERE
-                    table_name = 'customers';
-            """)
+                    table_name = '{table_name}';
+            """.format(table_name=table_name))
             index_names = await connection.fetch("""
                 SELECT
                     indexname
                 FROM
                     pg_indexes
                 WHERE
-                    tablename = 'customers';
-            """)
+                    tablename = '{table_name}';
+            """.format(table_name=table_name))
         return column_data, index_names
 
     async def create(self):
-        column_data, index_names = await self._get_database_data()
-        db_table = Table.from_db(table_name='customers', column_data=column_data, index_names=index_names)
-        # model_table = Table.from_model()
+        for model in ORM.database.models:
+            column_data, index_names = await self._get_database_data(model.table_name)
+            db_table = Table.from_db(
+                table_name=model.table_name,
+                column_data=column_data,
+                index_names=index_names,
+            )
+            model_table = Table.from_model(model_class=model)
