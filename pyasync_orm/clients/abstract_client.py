@@ -1,14 +1,27 @@
 from abc import ABC, abstractmethod
 from contextlib import asynccontextmanager
+from typing import Any, Callable, Union, Optional, TYPE_CHECKING, Type
+
+if TYPE_CHECKING:
+    from pyasync_orm.databases.abstract_management_system import AbstractManagementSystem
 
 
 class AbstractClient(ABC):
     @abstractmethod
-    async def create_connection_pool(self, *args, **kwargs):
+    def __init__(self, **db_kwargs):
+        pass
+
+    @abstractmethod
+    async def create_connection_pool(self, **db_kwargs):
         pass
 
     @abstractmethod
     async def close_connection_pool(self):
+        pass
+
+    @property
+    @abstractmethod
+    def management_system(self) -> Type['AbstractManagementSystem']:
         pass
 
     @abstractmethod
