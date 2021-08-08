@@ -1,58 +1,130 @@
-from typing import List, Any, Union, Callable, Type, TYPE_CHECKING, Optional
+from typing import List, TYPE_CHECKING, Optional, Union, Any, Callable
 
+from pyasync_orm.databases.abstract_column import AbstractColumn
 from pyasync_orm.databases.abstract_management_system import AbstractManagementSystem
 from pyasync_orm.databases.abstract_table import AbstractTable
-from pyasync_orm.fields import BaseField
 
 if TYPE_CHECKING:
     from asyncpg import Record
-    from pyasync_orm.models import Model
+
+
+class DefaultDataType:
+    def __init__(
+        self,
+        column_name: str,
+        data_type: str,
+        null: bool,
+        unique: bool,
+        primary_key: bool,
+        auto_increment: bool,
+        default: Optional[Union[Any, Callable[[], Any]]],
+        max_digits: Optional[int],
+        decimal_places: Optional[int],
+        max_length: Optional[int],
+    ):
+        self.column_name = column_name
+        self.data_type = data_type
+        self.null = ' NOT NULL' if not null else ''
+        self.unique = ' UNIQUE' if unique else ''
+        self.default = f' DEFAULT {default}' if default is not None else ''
+        self.max_digits = max_digits
+        self.decimal_places = decimal_places
+        self.max_length = max_length
+        self.primary_key = primary_key
+        self.auto_increment = auto_increment
+
+    def __str__(self):
+        return f'{self.column_name} {self.data_type}{self.null}{self.unique}{self.default}'
+
+
+class CharVarDataType(DefaultDataType):
+    def __str__(self):
+        self.data_type = f'{self.data_type}({self.max_length})'
+        return super().__str__()
+
+
+class NumericDataType(DefaultDataType):
+    def __str__(self):
+        self.data_type = f'{self.data_type}({self.max_digits}, {self.decimal_places})'
+        return super().__str__()
+
+
+class IntDataType(DefaultDataType):
+    serial_data_types = {
+        'smallint': 'smallserial',
+        'integer': 'serial',
+        'bigint': 'bigserial',
+    }
+
+    def __str__(self):
+        if self.auto_increment:
+            primary_key = ' PRIMARY KEY' if self.primary_key else ''
+            string_ = f'{self.column_name} {self.serial_data_types[self.data_type]}{primary_key}'
+        else:
+            string_ = super().__str__()
+        return string_
+
+
+class Column(AbstractColumn):
+    data_type_classes = {
+        'default': DefaultDataType,
+        'character varying': CharVarDataType,
+        'numeric': NumericDataType,
+        'smallint': IntDataType,
+        'integer': IntDataType,
+        'bigint': IntDataType,
+    }
+
+    def __str__(self):
+        data_type_class = self.data_type_classes.get(self.data_type, DefaultDataType)
+        return str(data_type_class(
+            column_name=self.column_name,
+            data_type=self.data_type,
+            null=self.null,
+            unique=self.unique,
+            default=self.default,
+            max_digits=self.max_digits,
+            decimal_places=self.decimal_places,
+            max_length=self.max_length,
+            primary_key=self.primary_key,
+            auto_increment=self.auto_increment,
+        ))
 
 
 class Table(AbstractTable):
-    @classmethod
-    def from_model(
-        cls,
-        model_class: Type['Model']
-    ) -> 'Table':
-        # TODO left off here
-        return cls(
-            columns=[
-                cls.column_class(
-                    column_name=key,
-                    **value.db_column_dict,
-                )
-                for key, value in model_class.__dict__.items()
-                if isinstance(value, BaseField)
-            ]
-        )
+    column_class = Column
 
     @classmethod
-    def _get_column_from_index(
-        cls,
-        index_name: str,
-        table_name: str,
-    ) -> str:
-        return index_name.removeprefix(f'{table_name}_').removesuffix('_uindex')
+    def _get_column_name_from_index(cls, index_definition: str) -> str:
+        range_start = index_definition.find('(') + 1
+        range_finish = index_definition.find(')')
+        return index_definition[range_start: range_finish]
 
     @classmethod
     def from_db(
         cls,
         table_name: str,
         column_data: List['Record'],
-        index_names: List['Record'],
+        index_data: List['Record'],
     ) -> 'Table':
         unique_columns = [
-            cls._get_column_from_index(index_name['indexname'], table_name)
-            for index_name in index_names
-            if 'uindex' in index_name['indexname']
+            cls._get_column_name_from_index(data['indexdef'])
+            for data in index_data
+            if 'uindex' in data['indexname'].split('_')[-1]
+        ]
+        primary_key_columns = [
+            cls._get_column_name_from_index(data['indexdef'])
+            for data in index_data
+            if 'pkey' in data['indexname'].split('_')[-1]
         ]
         columns = [
             cls.column_class(
                 column_name=record['column_name'],
                 data_type=record['data_type'],
-                null=record['is_nullable'],
-                unique=record['column_name'] in unique_columns,
+                null=record['is_nullable'] == 'YES',
+                primary_key=record['column_name'] in primary_key_columns,
+                auto_increment=False if record['column_default'] is None else 'nextval(' in record['column_default'],
+                unique=record['column_name'] in unique_columns + primary_key_columns,
                 default=record['column_default'],  # TODO need to translate to python
                 max_length=record['character_maximum_length'],
                 max_digits=record['numeric_precision'],
@@ -60,12 +132,13 @@ class Table(AbstractTable):
             )
             for record in column_data
         ]
-        return cls(columns=columns)
+        return cls(table_name=table_name, columns=columns)
 
 
 class PostgreSQL(AbstractManagementSystem):
     table_class = Table
     data_types = {
+        'bool': 'boolean',
         'smallserial': 'smallserial',
         'serial': 'serial',
         'bigserial': 'bigserial',
@@ -74,34 +147,13 @@ class PostgreSQL(AbstractManagementSystem):
         'bigint': 'bigint',
         'numeric': 'numeric',
         'double precision': 'double precision',
-        'varchar': 'varchar',
+        'varchar': 'character varying',
         'text': 'text',
         'json': 'json',
         'date': 'date',
         'timestamp': 'timestamp',
         'timestamp with time zone': 'timestamp with time zone',
     }
-
-    @classmethod
-    def column_dict(
-        cls,
-        data_type: str,
-        null: bool,
-        unique: bool,
-        default: Optional[Union[Any, Callable[[], Any]]] = None,
-        max_length: Optional[int] = None,
-        max_digits: Optional[int] = None,
-        decimal_places: Optional[int] = None,
-    ) -> dict:
-        return {
-            'data_type': data_type,
-            'is_nullable': 'YES' if null else 'NO',
-            'unique': unique,
-            'column_default': default,
-            'character_maximum_length': max_length,
-            'numeric_precision': max_digits,
-            'numeric_scale': decimal_places,
-        }
 
     @classmethod
     def column_data_sql(cls, table_name: str) -> str:
@@ -117,12 +169,19 @@ class PostgreSQL(AbstractManagementSystem):
         """.format(table_name=table_name)
 
     @classmethod
-    def index_names_sql(cls, table_name: str) -> str:
+    def index_data_sql(cls, table_name: str) -> str:
         return """
             SELECT
-                indexname
+                indexname, indexdef
             FROM
                 pg_indexes
             WHERE
                 tablename = '{table_name}';
         """.format(table_name=table_name)
+
+    @classmethod
+    def get_create_table_sql(cls, model_table: 'AbstractTable') -> str:
+        return (
+            f'CREATE TABLE {model_table.table_name}'
+            f'({", ".join([str(column) for column in model_table.columns])})'
+        )

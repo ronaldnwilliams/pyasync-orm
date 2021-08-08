@@ -1,72 +1,83 @@
 import json
-from abc import abstractmethod
+from abc import abstractmethod, ABC
 from typing import Optional, Type, Union, Any, Callable
 
 from pyasync_orm.orm import ORM
 
 
-class BaseField:
+class BaseField(ABC):
     def __init__(
         self,
         null: bool = True,
         default: Optional[Union[Any, Callable[[], Any]]] = None,
-        primary_key: bool = False,
         unique: bool = False,
+        primary_key: bool = False,
     ):
         self.null = null
         self.default = default
-        self.primary_key = primary_key
         self.unique = unique
+        self.primary_key = primary_key
+        if self.primary_key:
+            self.null = False
+            self.default = None
+            self.unique = True
 
-    @abstractmethod
     @property
+    @abstractmethod
     def data_type(self) -> str:
         pass
 
     @property
     def db_column_dict(self) -> dict:
-        return ORM.database.management_system.column_dict(
-            data_type=self.data_type,
-            null='YES' if self.null else 'NO',
-            unique=self.unique,
-            default=self.default,
-            max_length=getattr(self, 'max_length', None),
-            max_digits=getattr(self, 'max_digits', None),
-            decimal_places=getattr(self, 'decimal_places', None),
-        )
+        return {
+            'data_type': self.data_type,
+            'null': self.null,
+            'unique': self.unique,
+            'default': self.default,
+            'primary_key': self.primary_key,
+            'auto_increment': getattr(self, 'auto_increment', False),
+            'max_length': getattr(self, 'max_length', None),
+            'max_digits': getattr(self, 'max_digits', None),
+            'decimal_places': getattr(self, 'decimal_places', None),
+        }
 
 
-class SmallSerialField(BaseField):
-    @property
-    def data_type(self) -> str:
-        return ORM.database.management_system.data_types['smallserial']
+class BaseIntField(BaseField, ABC):
+    def __init__(
+        self,
+        auto_increment: bool = False,
+        **kwargs,
+    ):
+        self.decimal_places = 0
+        self.auto_increment = auto_increment
+        super().__init__(**kwargs)
 
 
-class SerialField(BaseField):
-    @property
-    def data_type(self) -> str:
-        return ORM.database.management_system.data_types['serial']
+class SmallIntegerField(BaseIntField):
+    def __init__(self, **kwargs):
+        self.max_digits = 16
+        super().__init__(**kwargs)
 
-
-class BigSerialField(BaseField):
-    @property
-    def data_type(self) -> str:
-        return ORM.database.management_system.data_types['bigserial']
-
-
-class SmallIntegerField(BaseField):
     @property
     def data_type(self) -> str:
         return ORM.database.management_system.data_types['smallint']
 
 
-class IntegerField(BaseField):
+class IntegerField(BaseIntField):
+    def __init__(self, **kwargs):
+        self.max_digits = 32
+        super().__init__(**kwargs)
+
     @property
     def data_type(self) -> str:
         return ORM.database.management_system.data_types['integer']
 
 
-class BigIntegerField(BaseField):
+class BigIntegerField(BaseIntField):
+    def __init__(self, **kwargs):
+        self.max_digits = 64
+        super().__init__(**kwargs)
+
     @property
     def data_type(self) -> str:
         return ORM.database.management_system.data_types['bigint']
@@ -92,6 +103,12 @@ class FloatField(BaseField):
     @property
     def data_type(self) -> str:
         return ORM.database.management_system.data_types['double precision']
+
+
+class BooleanField(BaseField):
+    @property
+    def data_type(self) -> str:
+        return ORM.database.management_system.data_types['bool']
 
 
 class VarCharField(BaseField):
