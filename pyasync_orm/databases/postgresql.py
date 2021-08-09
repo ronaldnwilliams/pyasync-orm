@@ -134,6 +134,11 @@ class Table(AbstractTable):
         ]
         return cls(table_name=table_name, columns=columns)
 
+    def __sub__(self, other: 'Table') -> 'Table':
+        other_column_names = {column.column_name for column in other.columns}
+        add_columns = [column for column in self.columns if column.column_name not in other_column_names]
+        return Table(table_name=self.table_name, columns=add_columns)
+
 
 class PostgreSQL(AbstractManagementSystem):
     table_class = Table
@@ -185,3 +190,33 @@ class PostgreSQL(AbstractManagementSystem):
             f'CREATE TABLE {model_table.table_name}'
             f'({", ".join([str(column) for column in model_table.columns])})'
         )
+
+    @classmethod
+    def _get_add_columns_sql(cls, table: Table) -> List[str]:
+        table_name = table.table_name
+        return [
+            f'ALTER TABLE {table_name} ADD COLUMN {column}'
+            for column in table.columns
+        ]
+
+    @classmethod
+    def _get_drop_columns_sql(cls, table: Table) -> List[str]:
+        table_name = table.table_name
+        return [
+            f'ALTER TABLE {table_name} DROP COLUMN {column.column_name}'
+            for column in table.columns
+        ]
+
+    @classmethod
+    def get_alter_table_sql(
+        cls,
+        model_table: 'AbstractTable',
+        db_table: 'AbstractTable'
+    ) -> List[str]:
+        # TODO check for column renames
+        add_columns_table = model_table - db_table
+        drop_columns_table = db_table - model_table
+        # TODO check for column updates
+        add_sql_list = cls._get_add_columns_sql(table=add_columns_table)
+        drop_sql_list = cls._get_drop_columns_sql(table=drop_columns_table)
+        return add_sql_list + drop_sql_list

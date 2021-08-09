@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Type, TYPE_CHECKING
+from typing import Type, TYPE_CHECKING, List
 
 if TYPE_CHECKING:
     from pyasync_orm.databases.abstract_table import AbstractTable
@@ -38,4 +38,13 @@ class AbstractManagementSystem(ABC):
     @classmethod
     @abstractmethod
     def get_create_table_sql(cls, model_table: 'AbstractTable') -> str:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def get_alter_table_sql(
+        cls,
+        model_table: 'AbstractTable',
+        db_table: 'AbstractTable'
+    ) -> List[str]:
         pass

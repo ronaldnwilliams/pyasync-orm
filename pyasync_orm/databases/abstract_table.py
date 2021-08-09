@@ -45,3 +45,7 @@ class AbstractTable(ABC):
         index_data: List[Any],
     ) -> 'AbstractTable':
         pass
+
+    @abstractmethod
+    def __sub__(self, other: 'Table') -> 'Table':
+        pass

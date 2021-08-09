@@ -30,7 +30,10 @@ class Migration:
                 column_data=column_data,
                 index_data=index_data,
             )
-            # check for alterations
+            self.sql += ORM.database.management_system.get_alter_table_sql(
+                model_table=model_table,
+                db_table=db_table,
+            )
         else:
             self.sql.append(ORM.database.management_system.get_create_table_sql(model_table=model_table))
 
@@ -45,7 +48,6 @@ class Migration:
         os.chdir(migration_path)
 
     def _write_to_file(self):
-        self._get_or_create_migrations_directory()
         # TODO raise error if non-migration files exist
         file_number = len(os.listdir()) + 1
         with open(f'migration_{file_number}.py', 'x') as file:
@@ -56,4 +58,5 @@ class Migration:
 
     async def write_migration(self):
         await self._gather_sql()
+        self._get_or_create_migrations_directory()
         self._write_to_file()
