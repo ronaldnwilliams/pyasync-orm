@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 class Migration:
     def __init__(self, database: 'Database'):
         self.database = database
+        self.model_tables = {}
+        self.db_tables = {}
         self.sql = []
 
     async def _get_database_data(self, table_name: str) -> Tuple[List[Any], List[Any]]:
@@ -22,24 +24,38 @@ class Migration:
         return column_data, index_data
 
     async def _add_sql(self, model: 'Model'):
-        column_data, index_data = await self._get_database_data(model.table_name)
-        model_table = ORM.database.management_system.table_class.from_model(model_class=model)
-        if column_data:
-            db_table = ORM.database.management_system.table_class.from_db(
-                table_name=model.table_name,
-                column_data=column_data,
-                index_data=index_data,
-            )
-            self.sql += ORM.database.management_system.get_alter_table_sql(
-                model_table=model_table,
-                db_table=db_table,
-            )
-        else:
-            self.sql.append(ORM.database.management_system.get_create_table_sql(model_table=model_table))
+        # TODO check for model renames
+        # if we are adding and dropping
+        # if model is in same file
+        # TODO check for column renames
+        # if we are adding and dropping on same model
+        # with same data type
+        # self.sql += ORM.database.management_system.get_alter_table_sql(
+        #     model_table=model_table,
+        #     db_table=db_table,
+        # )
+        # self.sql.append(ORM.database.management_system.get_create_table_sql(model_table=model_table))
+        pass
 
-    async def _gather_sql(self):
+    def _gather_model_tables(self):
         for model in self.database.models:
-            await self._add_sql(model=model)
+            model_table = ORM.database.management_system.table_class.from_model(model_class=model)
+            self.model_tables.update({model.table_name: model_table})
+
+    async def _gather_db_tables(self):
+        # TODO go to database to get all tables
+        # column_data, index_data = await self._get_database_data(model.table_name)
+        # if column_data:
+        #     db_table = ORM.database.management_system.table_class.from_db(
+        #         table_name=model.table_name,
+        #         column_data=column_data,
+        #         index_data=index_data,
+        #     )
+        pass
+
+    async def _gather_tables(self):
+        self._gather_model_tables()
+        await self._gather_db_tables()
 
     def _get_or_create_migrations_directory(self):
         migration_path = os.path.dirname(inspect.getmodule(self.database.models[0]).__file__) + '/migrations'
@@ -57,6 +73,6 @@ class Migration:
             file.write(']\n')
 
     async def write_migration(self):
-        await self._gather_sql()
+        await self._gather_tables()
         self._get_or_create_migrations_directory()
         self._write_to_file()
