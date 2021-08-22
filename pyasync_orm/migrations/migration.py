@@ -17,10 +17,21 @@ class Migration:
         self.db_tables = {}
         self.sql = []
 
-    async def _get_database_data(self, table_name: str) -> Tuple[List[Any], List[Any]]:
+    async def _get_database_data(
+        self,
+        table_name: str,
+    ) -> Tuple[List[Any], List[Any]]:
         async with self.database.get_connection() as connection:
-            column_data = await connection.fetch(self.database.management_system.column_data_sql(table_name=table_name))
-            index_data = await connection.fetch(self.database.management_system.index_data_sql(table_name=table_name))
+            column_data = await connection.fetch(
+                self.database.management_system.column_data_sql(
+                    table_name=table_name,
+                )
+            )
+            index_data = await connection.fetch(
+                self.database.management_system.index_data_sql(
+                    table_name=table_name,
+                )
+            )
         return column_data, index_data
 
     async def _add_sql(self, model: 'Model'):
@@ -39,7 +50,11 @@ class Migration:
 
     def _gather_model_tables(self):
         for model in self.database.models:
-            model_table = ORM.database.management_system.table_class.from_model(model_class=model)
+            model_table = (
+                ORM.database.management_system.table_class.from_model(
+                    model_class=model,
+                )
+            )
             self.model_tables.update({model.table_name: model_table})
 
     async def _gather_db_tables(self):
@@ -58,7 +73,9 @@ class Migration:
         await self._gather_db_tables()
 
     def _get_or_create_migrations_directory(self):
-        migration_path = os.path.dirname(inspect.getmodule(self.database.models[0]).__file__) + '/migrations'
+        migration_path = os.path.dirname(
+            inspect.getmodule(self.database.models[0]).__file__
+        ) + '/migrations'
         with suppress(FileExistsError):
             os.mkdir(migration_path)
         os.chdir(migration_path)

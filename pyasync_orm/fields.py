@@ -1,8 +1,25 @@
 import json
 from abc import abstractmethod, ABC
+from enum import Enum
 from typing import Optional, Type, Union, Any, Callable
 
 from pyasync_orm.orm import ORM
+
+
+class Symbol(Enum):
+    LESS_THAN = '<'
+    LESS_THAN_OR_EQUAL_TO = '<='
+    EQUAL_TO = '='
+    NOT_EQUAL_TO = '!='
+    GREATER_THAN = '>'
+    GREATER_THAN_OR_EQUAL_TO = '>='
+
+
+class SearchCondition:
+    def __init__(self, field_name: str, symbol: Symbol, field_value: Any):
+        self.field_name = field_name
+        self.symbol: str = symbol.value
+        self.field_value = field_value
 
 
 class BaseField(ABC):
@@ -21,6 +38,49 @@ class BaseField(ABC):
             self.null = False
             self.default = None
             self.unique = True
+        self.name = ''  # set by Model.__init_subclass__
+
+    def __lt__(self, value: Any) -> SearchCondition:
+        return SearchCondition(
+            field_name=self.name,
+            symbol=Symbol.LESS_THAN,
+            field_value=value,
+        )
+
+    def __le__(self, value: Any) -> SearchCondition:
+        return SearchCondition(
+            field_name=self.name,
+            symbol=Symbol.LESS_THAN_OR_EQUAL_TO,
+            field_value=value,
+        )
+
+    def __eq__(self, value: Any) -> SearchCondition:
+        return SearchCondition(
+            field_name=self.name,
+            symbol=Symbol.EQUAL_TO,
+            field_value=value,
+        )
+
+    def __ne__(self, value: Any) -> SearchCondition:
+        return SearchCondition(
+            field_name=self.name,
+            symbol=Symbol.NOT_EQUAL_TO,
+            field_value=value,
+        )
+
+    def __gt__(self, value: Any) -> SearchCondition:
+        return SearchCondition(
+            field_name=self.name,
+            symbol=Symbol.GREATER_THAN,
+            field_value=value,
+        )
+
+    def __ge__(self, value: Any) -> SearchCondition:
+        return SearchCondition(
+            field_name=self.name,
+            symbol=Symbol.GREATER_THAN_OR_EQUAL_TO,
+            field_value=value,
+        )
 
     @property
     @abstractmethod
@@ -155,7 +215,9 @@ class DateField(BaseField):
         **kwargs,
     ):
         if auto_now and auto_now_add:
-            raise ValueError('DateField error; auto_now and auto_now_add. Only set one of these to True')
+            raise ValueError(
+                'DateField error; auto_now and auto_now_add. '
+                'Only set one of these to True')
         self.auto_now = auto_now
         self.auto_now_add = auto_now_add
         super().__init__(**kwargs)
@@ -172,5 +234,7 @@ class DateTimeField(DateField):
 
     @property
     def data_type(self) -> str:
-        with_time_zone = ' with time zone' if self.with_time_zone else ''
-        return ORM.database.management_system.data_types[f'timestamp{with_time_zone}']
+        timestamp = (
+            'timestamp' if self.with_time_zone else 'timestamp with time zone'
+        )
+        return ORM.database.management_system.data_types[timestamp]

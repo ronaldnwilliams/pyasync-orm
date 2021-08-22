@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Any
 
 
 def not_implemented(*args, **kwargs):
@@ -77,20 +77,26 @@ class Where:
     def __init__(self):
         self.conditions_strings = []
 
+    # def add(
+    #     self,
+    #     where_dict: dict,
+    #     not_: bool = False,
+    # ):
+    #     self.conditions_strings.append(
+    #         'NOT ' if not_ else ''
+    #         + '('
+    #         + 'AND, '.join([
+    #             str(Condition(key=key, value=value))
+    #             for key, value in where_dict.items()
+    #         ])
+    #         + ')'
+    #     )
+
     def add(
         self,
-        where_dict: dict,
-        not_: bool = False,
+        conditional_string: str
     ):
-        self.conditions_strings.append(
-            'NOT ' if not_ else ''
-            + '('
-            + 'AND, '.join([
-                str(Condition(key=key, value=value))
-                for key, value in where_dict.items()
-            ])
-            + ')'
-        )
+        self.conditions_strings.append(conditional_string)
 
     def __str__(self):
         if self.conditions_strings:
@@ -110,22 +116,37 @@ class SQL:
         self.values = ()
         self.where = Where()
 
-    def _extract_values(self, values_dict: dict) -> dict:
-        new_values = tuple(values_dict.values())
-        placeholder_values = list(range(len(self.values) + 1, len(new_values) + 1))
-        self.values += new_values
-        return {
-            key: placeholder_values.pop(0)
-            for key in values_dict
-        }
+    # def _extract_values(self, values_dict: dict) -> dict:
+    #     new_values = tuple(values_dict.values())
+    #     placeholder_values = list(range(len(self.values) + 1, len(new_values) + 1))
+    #     self.values += new_values
+    #     return {
+    #         key: placeholder_values.pop(0)
+    #         for key in values_dict
+    #     }
+
+    def _swap_value_with_placeholder(self, value: Any) -> str:
+        self.values += (value,)
+        return f'${len(self.values)}'
+
+    # def add_where(
+    #     self,
+    #     where_dict: dict,
+    #     not_: bool = False,
+    # ):
+    #     extracted_where_dict = self._extract_values(values_dict=where_dict)
+    #     self.where.add(where_dict=extracted_where_dict, not_=not_)
 
     def add_where(
         self,
-        where_dict: dict,
-        not_: bool = False,
+        field_name: str,
+        symbol: str,
+        field_value: Any,
     ):
-        extracted_where_dict = self._extract_values(values_dict=where_dict)
-        self.where.add(where_dict=extracted_where_dict, not_=not_)
+        placeholder_value = self._swap_value_with_placeholder(
+            value=field_value,
+        )
+        self.where.add(f'{field_name} {symbol} {placeholder_value}')
 
     def build_select(self) -> Tuple[str, Tuple]:
         return (
@@ -133,14 +154,14 @@ class SQL:
             self.values,
         )
 
-    def build_update(self, set_dict: dict) -> Tuple[str, Tuple]:
-        extracted_set_dict = self._extract_values(values_dict=set_dict)
+    def build_update(self, fields_dict: dict) -> Tuple[str, Tuple]:
         set_values = ', '.join(
-            f'{key} = ${value}'
-            for key, value in extracted_set_dict.items()
+            f'{key} = {self._swap_value_with_placeholder(value)}'
+            for key, value in fields_dict.items()
         )
         return (
-            f'UPDATE {self.table_name} SET {set_values} {self.where} RETURNING *',
+            f'UPDATE {self.table_name} '
+            f'SET {set_values} {self.where} RETURNING *',
             self.values,
         )
 
@@ -156,15 +177,19 @@ class SQL:
             self.values,
         )
 
-    @classmethod
-    def build_insert(
-        cls,
-        table_name: str,
-        column_list: List[str],
-    ) -> str:
-        if not column_list:
-            columns, values = 'DEFAULT', 'VALUES'
+    def build_insert(self, fields_dict: dict) -> Tuple[str, Tuple]:
+        if not fields_dict:
+            columns, values = 'DEFAULT', ''
         else:
-            columns = f'({", ".join(column_list)})' if column_list else ''
-            values = f'VALUES({", ".join([f"${num}" for num in range(1, len(column_list) + 1)])})' if columns else ''
-        return f'INSERT INTO {table_name} {columns} {values} RETURNING *'
+            column_names = ', '.join(fields_dict.keys())
+            columns = f'({column_names})'
+            placeholders = ', '.join(
+                f'{self._swap_value_with_placeholder(value)}'
+                for value in fields_dict.values()
+            )
+            values = f'({placeholders})'
+        return (
+            f'INSERT INTO {self.table_name} {columns}'
+            f' VALUES{values} RETURNING *',
+            self.values,
+        )
